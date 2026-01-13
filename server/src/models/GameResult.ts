@@ -29,25 +29,25 @@ const GameResultSchema = new Schema<IGameResultDocument>({
     decisions: {
       player1: { type: String, enum: ['KEEP', 'WITHDRAW'], required: true },
       player2: { type: String, enum: ['KEEP', 'WITHDRAW'], required: true },
-      llm: { type: String, enum: ['KEEP', 'WITHDRAW'], required: true }
+      automaton: { type: String, enum: ['KEEP', 'WITHDRAW'], required: true }  // Siempre WITHDRAW
     },
     payoffs: {
       player1: { type: Number, required: true },
       player2: { type: Number, required: true },
-      llm: { type: Number, required: true }
+      automaton: { type: Number, required: true }
     },
     decisionOrder: [{ type: String, required: true }],
     paidWhen: {
       player1: { type: String, enum: ['immediate', 'deferred'] },
       player2: { type: String, enum: ['immediate', 'deferred'] },
-      llm: { type: String, enum: ['immediate', 'deferred'] }
+      automaton: { type: String, enum: ['immediate', 'deferred'] }
     },
     seqTrace: { type: String }
   }],
   totalPayoffs: {
     player1: { type: Number, required: true },
     player2: { type: Number, required: true },
-    llm: { type: Number, required: true }
+    automaton: { type: Number, required: true }
   },
   playerTypes: [{
     type: String,
@@ -56,8 +56,8 @@ const GameResultSchema = new Schema<IGameResultDocument>({
   }],
   sessionMetadata: {
     roomCode: { type: String },
-    llmModel: { type: String, required: true },
-    llmResponses: [{ type: String }],
+    llmModel: { type: String },  // Solo si player2 era LLM
+    llmResponses: [{ type: String }],  // Respuestas del LLM
     playerProfiles: {
       player1: {
         gender: { type: String },

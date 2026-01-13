@@ -4,15 +4,23 @@ import { Decision, GameState, PlayerProfile } from '../types';
 import { logger } from '../config/logger';
 
 const SYSTEM_PROMPT = `You are a participant in an experimental economics study run on Prolific.
-You are one of three depositors in a small bank. One is an impatient automaton that ALWAYS WITHDRAWS; the other two depositors are human-like agents (you and another participant).
+You are one of THREE depositors in a small bank:
+- Depositor 1: Another patient participant (human)
+- Depositor 2: YOU (patient participant)
+- Depositor 3: An impatient AUTOMATON that ALWAYS WITHDRAWS immediately
 
-The game repeats for multiple rounds. In each round, choose one action:
-- KEEP
-- WITHDRAW
+The game repeats for multiple rounds. In each round, you choose one action:
+- KEEP (wait for the long-term project to mature)
+- WITHDRAW (withdraw immediately)
 
 Payoffs each round:
-- If BOTH patient participants choose KEEP, they both receive SUCCESS_PAY ECUs each, and the impatient automaton receives WITHDRAW_PAY ECUs.
-- Otherwise (if at least one participant WITHDRAWS), payments are assigned by the withdrawal sequence: the first two WITHDRAWERS receive WITHDRAW_PAY ECUs each; anyone else receives FAILURE_PAY ECUs.
+- If BOTH patient participants (you and Depositor 1) choose KEEP: You each receive SUCCESS_PAY ECUs, and the automaton receives WITHDRAW_PAY ECUs.
+- Otherwise (if at least one patient participant WITHDRAWS): Payments are assigned by withdrawal sequence. The first TWO withdrawers receive WITHDRAW_PAY ECUs each; anyone else receives FAILURE_PAY ECUs.
+
+Remember: The automaton ALWAYS withdraws, so it will always be one of the first two withdrawers. This means:
+- If BOTH patients KEEP: Both get SUCCESS_PAY (best outcome for patients)
+- If ONE patient WITHDRAWS: That patient gets WITHDRAW_PAY (second withdrawer after automaton), the other patient gets FAILURE_PAY
+- If BOTH patients WITHDRAW: Both get FAILURE_PAY (the automaton and first patient withdraw get WITHDRAW_PAY)
 
 Important: Reply with your action on the FIRST line as exactly one word: KEEP or WITHDRAW.
 Optionally, include a brief reason on later lines, but the first line must be just the action.`;
@@ -20,7 +28,7 @@ Optionally, include a brief reason on later lines, but the first line must be ju
 const ROUND_PROMPT_SIMULTANEOUS = (roundNumber: number, lastSummary: string): string => {
   return `Round ${roundNumber} context:
 - Last round summary: ${lastSummary}
-- Remember: the impatient automaton ALWAYS chooses WITHDRAW.
+- Remember: the automaton (Depositor 3) ALWAYS chooses WITHDRAW. You and the other patient (Depositor 1) must coordinate.
 - Please answer with your action on the first line only: KEEP or WITHDRAW.`;
 };
 
@@ -33,9 +41,10 @@ const ROUND_PROMPT_SEQUENTIAL = (
 
   return `Round ${roundNumber} – SEQUENTIAL – context:
 - Last round summary: ${lastSummary}
-- Decision queue this round is secret to participants, but you are deciding now given the following information about prior moves this round (order masked, no identities):
+- Decision queue this round is determined randomly, but you are deciding now given the following information about prior moves (order masked, no identities):
   Prior actions so far: ${priorActionsStr}
-- Remember: exactly one automaton exists and it ALWAYS chooses WITHDRAW (you are NOT told if it already moved).
+- Remember: The automaton ALWAYS chooses WITHDRAW, but you DON'T know if it has already moved or not. One of these prior actions might be the automaton's.
+- The other patient might have already moved, or might move after you.
 - Reply with ONLY one word on the first line: KEEP or WITHDRAW.`;
 };
 
@@ -234,9 +243,9 @@ Stay in character across all rounds.`;
     const lastRound = gameState.roundHistory[gameState.roundHistory.length - 1];
     const { round, decisions, payoffs, decisionOrder } = lastRound;
 
-    return `Round ${round}: Player1 chose ${decisions.player1}, Player2 chose ${decisions.player2}, Auto chose WITHDRAW. ` +
+    return `Round ${round}: Patient 1 chose ${decisions.player1}, Patient 2 (you) chose ${decisions.player2}, Automaton chose WITHDRAW. ` +
            `Withdrawal queue: ${decisionOrder.join('|')}. ` +
-           `Payoffs => Player1:${payoffs.player1}, Player2:${payoffs.player2}, Auto:${payoffs.llm}.`;
+           `Payoffs => Patient 1:${payoffs.player1}, Patient 2 (you):${payoffs.player2}, Automaton:${payoffs.automaton}.`;
   }
 
   /**

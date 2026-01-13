@@ -167,40 +167,58 @@ export function setupGameHandlers(io: Server): void {
           return;
         }
 
-        if (room.players.length < 2) {
-          socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: 'Need 2 players to start' });
+        // Determinar modo: vs IA o multijugador
+        const isVsAI = room.players.length === 1;
+        const isMultiplayer = room.players.length === 2;
+
+        if (!isVsAI && !isMultiplayer) {
+          socket.emit('error', { code: 'INVALID_PLAYER_COUNT', message: 'Need 1 player (vs AI) or 2 players (multiplayer)' });
           return;
         }
 
-        // Crear jugador LLM
-        const llmProfile = LLMService.generateRandomProfile();
-        const llmPlayer: PlayerInfo = {
-          playerId: 'llm',
-          playerName: 'AI Player',
-          socketId: 'llm-bot',
-          connected: true,
-          isLLM: true,
-          profile: llmProfile
-        };
+        let player1: PlayerInfo;
+        let player2: PlayerInfo;
 
-        // Crear juego
+        if (isVsAI) {
+          // Modo vs IA: player1 = humano, player2 = LLM
+          player1 = room.players[0];
+
+          const llmProfile = LLMService.generateRandomProfile();
+          player2 = {
+            playerId: 'player2',
+            playerName: 'AI Opponent',
+            socketId: 'llm-socket',  // Socket ficticio
+            connected: true,
+            isLLM: true,
+            profile: llmProfile
+          };
+
+          // Inicializar perfil del LLM
+          llmService.initializeProfile(
+            room.code,  // Usamos roomCode como ID temporal
+            llmProfile,
+            'Human',
+            config?.payoffs?.success || 70,
+            config?.payoffs?.withdraw || 50,
+            config?.payoffs?.failure || 20
+          );
+
+          logger.info(`Starting game in vs AI mode for room ${roomCode}`);
+        } else {
+          // Modo multijugador: ambos jugadores son humanos
+          player1 = room.players[0];
+          player2 = room.players[1];
+
+          logger.info(`Starting game in multiplayer mode for room ${roomCode}`);
+        }
+
+        // Crear juego (automaton se crea automáticamente)
         const game = gameService.createGame(
           roomCode,
           room.mode,
-          room.players[0],
-          room.players[1],
-          llmPlayer,
+          player1,
+          player2,
           config
-        );
-
-        // Inicializar perfil del LLM
-        llmService.initializeProfile(
-          game.gameId,
-          llmProfile,
-          'Human',
-          game.config.payoffs.success,
-          game.config.payoffs.withdraw,
-          game.config.payoffs.failure
         );
 
         // Marcar sala como en progreso
@@ -268,60 +286,15 @@ export function setupGameHandlers(io: Server): void {
 
         logger.info(`${playerId} submitted decision: ${decision}`);
 
-        // Modo SECUENCIAL: revelar y continuar
+        // Modo SECUENCIAL: revelar y continuar con processSequentialDecisions
         if (game.mode === 'sequential') {
           const position = game.currentRound.decisionOrder.indexOf(playerId);
 
           // Revelar decisión (sin identidad)
           io.to(game.roomCode).emit('decision-revealed', { decision, position });
 
-          // Verificar si es el siguiente jugador
-          const nextPlayer = gameService.getNextPlayerInSequence(gameId);
-
-          if (nextPlayer === 'llm') {
-            // Es turno del LLM
-            const priorActions = gameService.getPriorActionsMasked(gameId);
-            const { decision: llmDecision } = await llmService.getLLMDecision(
-              gameId,
-              game,
-              priorActions
-            );
-
-            gameService.submitDecision(gameId, 'llm', llmDecision);
-
-            const llmPosition = game.currentRound.decisionOrder.indexOf('llm');
-            io.to(game.roomCode).emit('decision-revealed', {
-              decision: llmDecision,
-              position: llmPosition
-            });
-
-            // Verificar si quedan jugadores
-            const stillNext = gameService.getNextPlayerInSequence(gameId);
-            if (stillNext) {
-              // Notificar al siguiente jugador
-              const priorActionsUpdated = gameService.getPriorActionsMasked(gameId);
-              const nextPosition = game.currentRound.decisionOrder.indexOf(stillNext);
-              io.to(game.roomCode).emit('next-player-turn', {
-                position: nextPosition,
-                priorActions: priorActionsUpdated
-              });
-            } else {
-              // Todos decidieron - finalizar ronda
-              await finalizeRound(io, gameId);
-            }
-
-          } else if (nextPlayer) {
-            // Notificar al siguiente jugador humano
-            const priorActions = gameService.getPriorActionsMasked(gameId);
-            const nextPosition = game.currentRound.decisionOrder.indexOf(nextPlayer);
-            io.to(game.roomCode).emit('next-player-turn', {
-              position: nextPosition,
-              priorActions
-            });
-          } else {
-            // Todos decidieron - finalizar ronda
-            await finalizeRound(io, gameId);
-          }
+          // Continuar con el siguiente jugador en secuencia
+          await processSequentialDecisions(io, gameId, game.currentRound.decisionOrder);
         }
         // Modo SIMULTÁNEO: esperar a que todos decidan
         else {
@@ -396,46 +369,79 @@ async function startRound(io: Server, gameId: string): Promise<void> {
   // Iniciar timer
   startTimer(io, gameId);
 
-  // Si es modo secuencial, determinar primer jugador
+  // El automaton SIEMPRE decide WITHDRAW inmediatamente
+  gameService.submitDecision(gameId, 'automaton', 'WITHDRAW');
+  logger.info(`Automaton decided WITHDRAW for round ${roundNumber} (automatic)`);
+
+  // Si es modo secuencial, procesar jugadores en orden
   if (game.mode === 'sequential') {
-    const firstPlayer = decisionOrder[0];
-
-    if (firstPlayer === 'llm') {
-      // LLM decide primero
-      const { decision } = await llmService.getLLMDecision(gameId, game, []);
-      gameService.submitDecision(gameId, 'llm', decision);
-
-      io.to(game.roomCode).emit('decision-revealed', { decision, position: 0 });
-
-      // Siguiente jugador
-      const nextPlayer = gameService.getNextPlayerInSequence(gameId);
-      if (nextPlayer) {
-        const priorActions = gameService.getPriorActionsMasked(gameId);
-        const nextPosition = decisionOrder.indexOf(nextPlayer);
-        io.to(game.roomCode).emit('next-player-turn', {
-          position: nextPosition,
-          priorActions
-        });
-      }
-    } else {
-      // Jugador humano decide primero
-      io.to(game.roomCode).emit('next-player-turn', {
-        position: 0,
-        priorActions: []
-      });
-    }
+    await processSequentialDecisions(io, gameId, decisionOrder);
   }
-  // Si es simultáneo, obtener decisión del LLM inmediatamente
+  // Si es modo simultáneo
   else {
-    const { decision } = await llmService.getLLMDecision(gameId, game);
-    gameService.submitDecision(gameId, 'llm', decision);
-    logger.info(`LLM decided ${decision} for round ${roundNumber}`);
+    // Si player2 es LLM, obtener su decisión
+    if (game.players.player2.isLLM) {
+      const { decision } = await llmService.getLLMDecision(gameId, game, []);
+      gameService.submitDecision(gameId, 'player2', decision);
+      logger.info(`LLM (player2) decided ${decision} for round ${roundNumber}`);
+    }
 
     // Verificar si todos decidieron
     if (gameService.allDecisionsMade(gameId)) {
       await finalizeRound(io, gameId);
     }
   }
+}
+
+/**
+ * Procesa decisiones en modo secuencial
+ */
+async function processSequentialDecisions(io: Server, gameId: string, decisionOrder: PlayerId[]): Promise<void> {
+  const game = gameService.getGame(gameId);
+  if (!game) return;
+
+  for (const pid of decisionOrder) {
+    // Si ya decidió (automaton), skip
+    if (game.currentRound.decisions.has(pid)) {
+      const decision = game.currentRound.decisions.get(pid)!;
+      const position = decisionOrder.indexOf(pid);
+      io.to(game.roomCode).emit('decision-revealed', { decision, position });
+      continue;
+    }
+
+    // Si es automaton (nunca debería llegar aquí porque ya decidió)
+    if (pid === 'automaton') {
+      gameService.submitDecision(gameId, 'automaton', 'WITHDRAW');
+      io.to(game.roomCode).emit('decision-revealed', { decision: 'WITHDRAW', position: decisionOrder.indexOf(pid) });
+      continue;
+    }
+
+    // Si es player2 y es LLM
+    if (pid === 'player2' && game.players.player2.isLLM) {
+      const priorActions = gameService.getPriorActionsMasked(gameId);
+      const { decision } = await llmService.getLLMDecision(gameId, game, priorActions);
+      gameService.submitDecision(gameId, 'player2', decision);
+
+      const position = decisionOrder.indexOf(pid);
+      io.to(game.roomCode).emit('decision-revealed', { decision, position });
+      logger.info(`LLM (player2) decided ${decision} in sequential mode`);
+      continue;
+    }
+
+    // Si es jugador humano, esperar a que decida
+    const priorActions = gameService.getPriorActionsMasked(gameId);
+    const position = decisionOrder.indexOf(pid);
+    io.to(game.roomCode).emit('next-player-turn', {
+      position,
+      priorActions
+    });
+
+    // Salir del loop - esperamos a que el jugador humano decida (se maneja en submit-decision)
+    return;
+  }
+
+  // Si llegamos aquí, todos decidieron
+  await finalizeRound(io, gameId);
 }
 
 function startTimer(io: Server, gameId: string): void {
@@ -494,7 +500,7 @@ async function finalizeRound(io: Server, gameId: string): Promise<void> {
 
   // Informar al LLM del resultado
   const outcomeText = `Round ${result.round}: Player1 chose ${result.decisions.player1}, Player2 chose ${result.decisions.player2}, Auto chose WITHDRAW. ` +
-                      `Payoffs => Player1:${result.payoffs.player1}, Player2:${result.payoffs.player2}, Auto:${result.payoffs.llm}.`;
+                      `Payoffs => Player1:${result.payoffs.player1}, Player2:${result.payoffs.player2}, Auto:${result.payoffs.automaton}.`;
   llmService.informOutcome(gameId, outcomeText);
 
   // Emitir resultados a todos

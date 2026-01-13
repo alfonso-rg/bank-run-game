@@ -2,7 +2,7 @@
 
 export type GameMode = 'sequential' | 'simultaneous';
 export type Decision = 'KEEP' | 'WITHDRAW';
-export type PlayerId = 'player1' | 'player2' | 'llm';
+export type PlayerId = 'player1' | 'player2' | 'automaton';
 export type PaidWhen = 'immediate' | 'deferred';
 
 export type GameStatus =
@@ -30,7 +30,7 @@ export interface PlayerInfo {
   playerName: string;
   socketId: string;
   connected: boolean;
-  isLLM: boolean;
+  isLLM: boolean;  // true si este jugador es controlado por LLM (solo player2 en modo vs IA)
   profile?: PlayerProfile;  // Para LLM roleplay
 }
 
@@ -41,8 +41,10 @@ export interface PlayerProfile {
   institutional_trust_0_10: number;
 }
 
-export interface LLMPlayerInfo extends PlayerInfo {
-  isLLM: true;
+// El automaton es simple - siempre retira, no necesita perfil
+export interface AutomatonInfo {
+  playerId: 'automaton';
+  alwaysWithdraws: true;
 }
 
 export interface GameConfig {
@@ -69,7 +71,7 @@ export interface RoundDecision {
 export interface RoundPayoff {
   player1: number;
   player2: number;
-  llm: number;
+  automaton: number;
 }
 
 export interface RoundResult {
@@ -77,14 +79,14 @@ export interface RoundResult {
   decisions: {
     player1: Decision;
     player2: Decision;
-    llm: Decision;
+    automaton: Decision;  // Siempre WITHDRAW
   };
   payoffs: RoundPayoff;
   decisionOrder: PlayerId[];  // Orden en que decidieron
   paidWhen?: {
     player1: PaidWhen;
     player2: PaidWhen;
-    llm: PaidWhen;
+    automaton: PaidWhen;
   };
   seqTrace?: string;  // Traza del flujo secuencial
 }
@@ -105,9 +107,9 @@ export interface GameState {
   status: GameStatus;
 
   players: {
-    player1: PlayerInfo;
-    player2: PlayerInfo;
-    llm: LLMPlayerInfo;
+    player1: PlayerInfo;      // Siempre paciente (humano o LLM en modo singleplayer)
+    player2: PlayerInfo;      // Siempre paciente (humano o LLM)
+    automaton: AutomatonInfo; // Impaciente - siempre retira
   };
 
   config: GameConfig;
@@ -151,25 +153,25 @@ export interface GameResultDocument {
     decisions: {
       player1: Decision;
       player2: Decision;
-      llm: Decision;
+      automaton: Decision;  // Siempre WITHDRAW
     };
     payoffs: RoundPayoff;
     decisionOrder: string[];
     paidWhen?: {
       player1: PaidWhen;
       player2: PaidWhen;
-      llm: PaidWhen;
+      automaton: PaidWhen;
     };
     seqTrace?: string;
   }[];
 
   totalPayoffs: RoundPayoff;
-  playerTypes: ('human' | 'llm')[];
+  playerTypes: ('human' | 'llm')[];  // player1 y player2 solo (automaton es siempre automaton)
 
   sessionMetadata: {
     roomCode?: string;
-    llmModel: string;
-    llmResponses: string[];
+    llmModel?: string;      // Solo si se usó LLM
+    llmResponses: string[]; // Respuestas del LLM si player2 era LLM
     playerProfiles?: {
       player1?: PlayerProfile;
       player2?: PlayerProfile;
@@ -219,7 +221,7 @@ export interface SocketEvents {
 
 // Constantes útiles
 
-export const PLAYER_IDS: PlayerId[] = ['player1', 'player2', 'llm'];
+export const PLAYER_IDS: PlayerId[] = ['player1', 'player2', 'automaton'];
 
 export const GAME_STATUSES: GameStatus[] = [
   'LOBBY',

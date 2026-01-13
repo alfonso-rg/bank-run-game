@@ -21,13 +21,15 @@ export class GameService {
 
   /**
    * Crea un nuevo juego
+   * @param player1 - Siempre paciente (humano)
+   * @param player2 - Siempre paciente (humano o LLM en modo vs IA)
+   * automaton es creado automáticamente (impaciente, siempre retira)
    */
   createGame(
     roomCode: string,
     mode: GameMode,
     player1: PlayerInfo,
     player2: PlayerInfo,
-    llmPlayer: PlayerInfo,
     config: Partial<GameConfig> = {}
   ): GameState {
     const gameId = nanoid();
@@ -41,7 +43,10 @@ export class GameService {
       players: {
         player1,
         player2,
-        llm: { ...llmPlayer, isLLM: true }
+        automaton: {
+          playerId: 'automaton',
+          alwaysWithdraws: true
+        }
       },
       config: gameConfig,
       currentRound: {
@@ -56,15 +61,18 @@ export class GameService {
       reconnectionTokens: {
         player1: nanoid(),
         player2: nanoid(),
-        llm: nanoid()
+        automaton: nanoid()
       }
     };
 
     this.games.set(gameId, game);
     this.playerGameMap.set(player1.socketId, gameId);
-    this.playerGameMap.set(player2.socketId, gameId);
+    if (!player2.isLLM) {
+      // Solo mapear si es humano (LLM no tiene socket real)
+      this.playerGameMap.set(player2.socketId, gameId);
+    }
 
-    logger.info(`Game created: ${gameId} in room ${roomCode} (${mode} mode)`);
+    logger.info(`Game created: ${gameId} in room ${roomCode} (${mode} mode). Player2 is ${player2.isLLM ? 'LLM' : 'human'}`);
 
     return game;
   }
@@ -142,7 +150,7 @@ export class GameService {
   ): { payoffs: RoundPayoff; paidWhen?: Record<PlayerId, PaidWhen> } {
     const d1 = decisions.get('player1')!;
     const d2 = decisions.get('player2')!;
-    const dllm = decisions.get('llm')!;
+    const dAutomaton = decisions.get('automaton')!;  // Siempre WITHDRAW
 
     const { success, withdraw, failure } = config.payoffs;
 
@@ -152,7 +160,7 @@ export class GameService {
         payoffs: {
           player1: success,
           player2: success,
-          llm: withdraw  // El LLM siempre retira
+          automaton: withdraw  // El automaton siempre retira
         }
       };
     }
@@ -162,13 +170,13 @@ export class GameService {
     const actionsMap: Record<PlayerId, Decision> = {
       player1: d1,
       player2: d2,
-      llm: dllm
+      automaton: dAutomaton  // Siempre WITHDRAW
     };
 
     const payoffs: RoundPayoff = {
       player1: failure,
       player2: failure,
-      llm: failure
+      automaton: failure
     };
 
     let paidCount = 0;
@@ -201,13 +209,13 @@ export class GameService {
     const payoffs: RoundPayoff = {
       player1: failure,
       player2: failure,
-      llm: failure
+      automaton: failure
     };
 
     const paidWhen: Record<PlayerId, PaidWhen> = {
       player1: 'deferred',
       player2: 'deferred',
-      llm: 'deferred'
+      automaton: 'deferred'
     };
 
     const trace: string[] = [];
@@ -272,13 +280,13 @@ export class GameService {
     // Extraer decisiones
     const d1 = decisions.get('player1')!;
     const d2 = decisions.get('player2')!;
-    const dllm = decisions.get('llm')!;
+    const dAutomaton = decisions.get('automaton')!;  // Siempre WITHDRAW
 
     // Crear Map sin nulls para pasar a funciones de cálculo
     const decisionsClean = new Map<PlayerId, Decision>([
       ['player1', d1],
       ['player2', d2],
-      ['llm', dllm]
+      ['automaton', dAutomaton]
     ]);
 
     // Calcular payoffs según el modo
@@ -292,7 +300,7 @@ export class GameService {
         decisions: {
           player1: d1,
           player2: d2,
-          llm: dllm
+          automaton: dAutomaton
         },
         payoffs,
         decisionOrder
@@ -310,7 +318,7 @@ export class GameService {
         decisions: {
           player1: d1,
           player2: d2,
-          llm: dllm
+          automaton: dAutomaton
         },
         payoffs,
         decisionOrder,
@@ -322,7 +330,7 @@ export class GameService {
     game.roundHistory.push(result);
     game.status = 'ROUND_RESULTS';
 
-    logger.info(`Round ${roundNumber} finalized. Payoffs: P1=${result.payoffs.player1}, P2=${result.payoffs.player2}, LLM=${result.payoffs.llm}`);
+    logger.info(`Round ${roundNumber} finalized. Payoffs: P1=${result.payoffs.player1}, P2=${result.payoffs.player2}, Automaton=${result.payoffs.automaton}`);
 
     return result;
   }
@@ -362,10 +370,16 @@ export class GameService {
         (acc, round) => ({
           player1: acc.player1 + round.payoffs.player1,
           player2: acc.player2 + round.payoffs.player2,
-          llm: acc.llm + round.payoffs.llm
+          automaton: acc.automaton + round.payoffs.automaton
         }),
-        { player1: 0, player2: 0, llm: 0 }
+        { player1: 0, player2: 0, automaton: 0 }
       );
+
+      // Determinar tipos de jugadores
+      const playerTypes: ('human' | 'llm')[] = [
+        'human',  // player1 siempre humano
+        game.players.player2.isLLM ? 'llm' : 'human'
+      ];
 
       const gameResult = new GameResult({
         gameId: game.gameId,
@@ -374,11 +388,11 @@ export class GameService {
         timestamp: game.createdAt,
         rounds: game.roundHistory,
         totalPayoffs,
-        playerTypes: ['human', 'human'],
+        playerTypes,
         sessionMetadata: {
           roomCode: game.roomCode,
-          llmModel: 'gpt-4o-mini',
-          llmResponses: [],
+          llmModel: game.players.player2.isLLM ? 'gpt-4o-mini' : undefined,
+          llmResponses: [],  // TODO: Agregar respuestas del LLM desde LLMService
           playerProfiles: {
             player1: game.players.player1.profile,
             player2: game.players.player2.profile
