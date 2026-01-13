@@ -126,27 +126,112 @@ Todos los jugadores deciden al mismo tiempo. Los resultados se revelan juntos.
 ### Modo Secuencial
 Los jugadores deciden en orden aleatorio. Cada decisión se revela progresivamente (sin identidad del jugador).
 
-## Características
+## Estado Actual del Proyecto
 
+### Totalmente Funcional ✅
+- **Modo Simultáneo vs IA**: Funciona perfectamente
+- **Modo Secuencial vs IA**: Funciona perfectamente con revelación progresiva de decisiones
+- **Socket.io Singleton**: Arreglado - una única conexión por cliente
+- **Historial de rondas**: Muestra todas las decisiones (tuyas, IA, autómata)
+- **Integración LLM**: GPT-4o-mini con roleplay profiles
+- **Persistencia**: Todos los juegos se guardan en MongoDB
+- **UI Responsive**: Funciona en desktop y móvil
+
+### En Testing 🔧
+- **Modo Multijugador (humano vs humano)**: Infraestructura lista pero necesita más pruebas
+  - Las salas se crean correctamente
+  - Los jugadores se pueden unir
+  - Falta validar flujo completo de juego
+
+### Pendiente ⏳
+- **Avance inmediato**: Actualmente espera 30s aunque todos hayan decidido
+- **Modo conversacional**: Chat con LLM durante fase de decisión (feature experimental futura)
+
+### Características Implementadas
 - ✅ Juego vs LLM (OpenAI GPT-4o-mini)
-- ✅ Modo multijugador (2 humanos + 1 LLM)
+- ✅ Modo multijugador (2 humanos + autómata) - infraestructura lista
 - ✅ Salas de espera con códigos únicos
 - ✅ Modos simultáneo y secuencial
+- ✅ Revelación progresiva en modo secuencial (sin identidades)
 - ✅ Reconexión automática en caso de desconexión
 - ✅ Almacenamiento de resultados para análisis
-- ✅ Rate limiting para prevenir abuso
+- ✅ Rate limiting para API calls
 
-## Deploy
+## Deploy en Producción
 
-### Backend (Render)
-1. Conectar repositorio a Render
-2. Configurar variables de entorno
-3. Deploy automático desde main branch
+### Paso 1: Backend en Render
 
-### Frontend (Vercel)
-1. Conectar repositorio a Vercel
-2. Configurar variables de entorno
-3. Deploy automático desde main branch
+1. **Crear Web Service** en [Render](https://render.com):
+   - Click en "New +" → "Web Service"
+   - Conectar tu repositorio de GitHub
+   - Configuración:
+     - **Name**: `bank-run-game-server` (o el nombre que prefieras)
+     - **Root Directory**: `server`
+     - **Environment**: `Node`
+     - **Build Command**: `npm install && npm run build`
+     - **Start Command**: `node dist/index.js`
+
+2. **Variables de Entorno** (pestaña "Environment"):
+   ```
+   MONGODB_URI=mongodb+srv://tu-usuario:password@cluster.mongodb.net/bankrun
+   OPENAI_API_KEY=sk-proj-...
+   PORT=3001
+   NODE_ENV=production
+   CLIENT_URL=https://tu-app.vercel.app
+   ```
+
+   **IMPORTANTE**: El `CLIENT_URL` lo configurarás después de desplegar en Vercel
+
+3. **Deploy**: Click en "Create Web Service"
+   - Copia la URL que te da Render (ej: `https://bank-run-game-server.onrender.com`)
+   - **Nota**: El tier gratuito tiene "cold starts" (~50 segundos tras inactividad)
+
+### Paso 2: Frontend en Vercel
+
+1. **Importar Proyecto** en [Vercel](https://vercel.com):
+   - Click en "New Project"
+   - Importar tu repositorio de GitHub
+   - Configuración:
+     - **Framework Preset**: Vite
+     - **Root Directory**: `client`
+     - **Build Command**: `npm run build` (autodetectado)
+     - **Output Directory**: `dist` (autodetectado)
+
+2. **Variables de Entorno** (pestaña "Environment Variables"):
+   ```
+   VITE_API_URL=https://tu-backend.onrender.com
+   VITE_SOCKET_URL=https://tu-backend.onrender.com
+   ```
+
+   Reemplaza con la URL real de tu backend de Render
+
+3. **Deploy**: Vercel desplegará automáticamente
+   - Copia la URL que te da Vercel (ej: `https://bank-run-game.vercel.app`)
+
+### Paso 3: Actualizar CORS en Backend
+
+1. Vuelve a Render → Tu Web Service → "Environment"
+2. Actualiza `CLIENT_URL` con la URL de Vercel que obtuviste
+3. Render redesplegará automáticamente
+
+### Paso 4: Verificar
+
+1. Abre la URL de Vercel en tu navegador
+2. Prueba crear un juego vs IA
+3. Si todo funciona, ¡listo! 🎉
+
+### Notas de Deployment
+
+- **Render Free Tier**: El servidor se "duerme" tras 15 minutos de inactividad. El primer request tardará ~50 segundos en "despertar"
+- **Vercel Free Tier**: Sin limitaciones significativas para este proyecto
+- **MongoDB Atlas**: El tier gratuito (512MB) es suficiente para miles de partidas
+- **OpenAI API**: Cada partida cuesta ~$0.002-0.005 (GPT-4o-mini es muy económico)
+
+### Actualizar Deployment
+
+Cada vez que hagas `git push` a la rama `main`:
+- Vercel se redesplegará automáticamente ✅
+- Render se redesplegará automáticamente ✅
 
 ## Testing
 

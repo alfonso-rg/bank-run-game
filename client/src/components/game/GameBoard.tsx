@@ -8,10 +8,14 @@ import type { Decision } from '../../types/game';
 
 export const GameBoard: React.FC = () => {
   const socket = useSocketInstance();
-  const { gameState, myPlayerId } = useGameStore();
+  const { gameState, myPlayerId, isMyTurnInSequential, setMyTurnInSequential } = useGameStore();
   const [hasDecided, setHasDecided] = useState(false);
   const [myDecision, setMyDecision] = useState<Decision | null>(null);
   const [remainingTime, setRemainingTime] = useState(30);
+
+  // Log crítico para debug
+  console.log('🔍 GameBoard myPlayerId:', myPlayerId);
+  console.log('🔍 GameBoard gameState:', gameState);
 
   useEffect(() => {
     if (!gameState || gameState.status !== 'ROUND_DECISION') {
@@ -19,6 +23,10 @@ export const GameBoard: React.FC = () => {
       setMyDecision(null);
       return;
     }
+
+    // Resetear estado local al iniciar nueva ronda
+    setHasDecided(false);
+    setMyDecision(null);
 
     // Timer countdown
     const interval = setInterval(() => {
@@ -39,6 +47,11 @@ export const GameBoard: React.FC = () => {
   const handleDecision = (decision: Decision) => {
     if (!socket || hasDecided) return;
 
+    console.log('📤 [CLIENT DEBUG] Sending decision:', decision);
+    console.log('📤 [CLIENT DEBUG] GameId:', gameState.gameId);
+    console.log('📤 [CLIENT DEBUG] Socket ID:', socket.id);
+    console.log('📤 [CLIENT DEBUG] My Player ID:', myPlayerId);
+
     socket.emit('submit-decision', {
       gameId: gameState.gameId,
       decision,
@@ -46,12 +59,32 @@ export const GameBoard: React.FC = () => {
 
     setHasDecided(true);
     setMyDecision(decision);
+
+    // En modo secuencial, resetear el flag de turno después de decidir
+    if (gameState.mode === 'sequential') {
+      setMyTurnInSequential(false, []);
+    }
+
+    console.log('✅ [CLIENT DEBUG] Decision sent successfully');
   };
 
+  // Determinar si es mi turno
   const isMyTurn = gameState.mode === 'simultaneous' ||
-    gameState.currentRound.decisionOrder[gameState.currentRound.revealedDecisions.length] === myPlayerId;
+    (gameState.mode === 'sequential' && isMyTurnInSequential);
 
   const isDecisionPhase = gameState.status === 'ROUND_DECISION';
+
+  // Debug logs
+  console.log('GameBoard Debug:', {
+    status: gameState.status,
+    isDecisionPhase,
+    isMyTurn,
+    hasDecided,
+    myPlayerId,
+    mode: gameState.mode,
+    decisionOrder: gameState.currentRound.decisionOrder,
+    revealedDecisions: gameState.currentRound.revealedDecisions
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-4">
@@ -94,6 +127,23 @@ export const GameBoard: React.FC = () => {
               </div>
             )}
 
+            {/* Mostrar decisiones reveladas en modo secuencial */}
+            {isDecisionPhase && gameState.mode === 'sequential' && gameState.currentRound.revealedDecisions.length > 0 && (
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h3 className="font-bold text-gray-800 mb-3">Decisiones previas:</h3>
+                <div className="space-y-2">
+                  {gameState.currentRound.revealedDecisions.map((decision, index) => (
+                    <div key={index} className="flex items-center gap-3 p-2 bg-white rounded">
+                      <span className="text-sm text-gray-600">Jugador {index + 1}:</span>
+                      <span className={`font-semibold ${decision === 'KEEP' ? 'text-green-600' : 'text-red-600'}`}>
+                        {decision === 'KEEP' ? 'ESPERÓ' : 'RETIRÓ'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {isDecisionPhase && !isMyTurn && gameState.mode === 'sequential' && (
               <div className="text-center py-12">
                 <div className="animate-pulse mb-4">
@@ -109,7 +159,7 @@ export const GameBoard: React.FC = () => {
             {isDecisionPhase && isMyTurn && !hasDecided && (
               <div className="space-y-4">
                 <p className="text-gray-600 mb-4">
-                  Elige tu acción para esta ronda:
+                  ¡Es tu turno! Elige tu acción:
                 </p>
 
                 <Button
@@ -227,20 +277,39 @@ export const GameBoard: React.FC = () => {
                 <h2 className="text-xl font-bold text-gray-800 mb-4">
                   Historial
                 </h2>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {gameState.roundHistory.map((round) => (
-                    <div key={round.round} className="text-sm border-b border-gray-100 pb-2">
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold">Ronda {round.round}</span>
-                        <span className="text-primary font-bold">
-                          {myPlayerId === 'player1' ? round.payoffs.player1 : round.payoffs.player2} ECUs
-                        </span>
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {gameState.roundHistory.map((round) => {
+                    const myDecisionRound = myPlayerId === 'player1' ? round.decisions.player1 : round.decisions.player2;
+                    const otherDecisionRound = myPlayerId === 'player1' ? round.decisions.player2 : round.decisions.player1;
+                    const myPayoffRound = myPlayerId === 'player1' ? round.payoffs.player1 : round.payoffs.player2;
+
+                    return (
+                      <div key={round.round} className="text-sm border border-gray-200 rounded p-3 bg-gray-50">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-bold text-gray-800">Ronda {round.round}</span>
+                          <span className="text-primary font-bold">{myPayoffRound} ECUs</span>
+                        </div>
+                        <div className="text-xs space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Tú:</span>
+                            <span className={`font-semibold ${myDecisionRound === 'KEEP' ? 'text-green-600' : 'text-red-600'}`}>
+                              {myDecisionRound === 'KEEP' ? 'ESPERASTE' : 'RETIRASTE'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">{gameState.players.player2.isLLM ? 'IA' : 'Otro jugador'}:</span>
+                            <span className={`font-semibold ${otherDecisionRound === 'KEEP' ? 'text-green-600' : 'text-red-600'}`}>
+                              {otherDecisionRound === 'KEEP' ? 'ESPERÓ' : 'RETIRÓ'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Autómata:</span>
+                            <span className="font-semibold text-red-600">RETIRÓ</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-600 mt-1">
-                        Tu decisión: {myPlayerId === 'player1' ? round.decisions.player1 : round.decisions.player2}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

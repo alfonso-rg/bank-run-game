@@ -13,12 +13,17 @@ interface GameStore {
   connected: boolean;
   error: string | null;
 
+  // Estado de turno en modo secuencial
+  isMyTurnInSequential: boolean;
+  sequentialPriorActions: string[];
+
   // Acciones
   setGameState: (state: GameState) => void;
   setRoomCode: (code: string) => void;
   setMyPlayerId: (id: PlayerId) => void;
   setConnected: (connected: boolean) => void;
   setError: (error: string | null) => void;
+  setMyTurnInSequential: (isMyTurn: boolean, priorActions?: string[]) => void;
 
   // Actualizaciones de ronda
   updateRoundResult: (result: RoundResult) => void;
@@ -34,12 +39,18 @@ export const useGameStore = create<GameStore>((set) => ({
   myPlayerId: null,
   connected: false,
   error: null,
+  isMyTurnInSequential: false,
+  sequentialPriorActions: [],
 
   setGameState: (state) => set({ gameState: state }),
   setRoomCode: (code) => set({ roomCode: code }),
   setMyPlayerId: (id) => set({ myPlayerId: id }),
   setConnected: (connected) => set({ connected }),
   setError: (error) => set({ error }),
+  setMyTurnInSequential: (isMyTurn, priorActions = []) => set({
+    isMyTurnInSequential: isMyTurn,
+    sequentialPriorActions: priorActions
+  }),
 
   updateRoundResult: (result) => set((state) => {
     if (!state.gameState) return state;
@@ -67,5 +78,7 @@ export const useGameStore = create<GameStore>((set) => ({
     myPlayerId: null,
     connected: false,
     error: null,
+    isMyTurnInSequential: false,
+    sequentialPriorActions: [],
   }),
 }));

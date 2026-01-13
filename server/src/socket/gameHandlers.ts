@@ -60,9 +60,20 @@ export function setupGameHandlers(io: Server): void {
         const roomCode = matchmakingService.createRoom(mode);
         socket.join(roomCode);
 
-        logger.info(`Room ${roomCode} created by ${socket.id}`);
+        // Añadir al creador como jugador automáticamente
+        const playerInfo: PlayerInfo = {
+          playerId: 'player1' as PlayerId,
+          playerName: 'Player',
+          socketId: socket.id,
+          connected: true,
+          isLLM: false
+        };
 
-        const response = { roomCode, playerId: 'creator' };
+        matchmakingService.joinRoom(roomCode, playerInfo);
+
+        logger.info(`Room ${roomCode} created by ${socket.id}, creator joined as player1`);
+
+        const response = { roomCode, playerId: 'player1' };
 
         if (callback) callback(response);
         else socket.emit('room-created', response);
@@ -259,12 +270,21 @@ export function setupGameHandlers(io: Server): void {
           return;
         }
 
+        // Debug logging para identificar el problema
+        logger.info(`[DECISION DEBUG] Received decision: ${decision} for game: ${gameId}`);
+        logger.info(`[DECISION DEBUG] Incoming socket.id: ${socket.id}`);
+        logger.info(`[DECISION DEBUG] Player1 socket: ${game.players.player1.socketId}, connected: ${game.players.player1.connected}`);
+        logger.info(`[DECISION DEBUG] Player2 socket: ${game.players.player2.socketId}, connected: ${game.players.player2.connected}, isLLM: ${game.players.player2.isLLM}`);
+
         // Determinar quién es este jugador
         let playerId: PlayerId | null = null;
         if (game.players.player1.socketId === socket.id) playerId = 'player1';
         else if (game.players.player2.socketId === socket.id) playerId = 'player2';
 
+        logger.info(`[DECISION DEBUG] Matched playerId: ${playerId}`);
+
         if (!playerId) {
+          logger.error(`[DECISION DEBUG] No matching playerId found for socket ${socket.id}`);
           socket.emit('error', { code: 'UNAUTHORIZED', message: 'Not a player in this game' });
           return;
         }
@@ -431,10 +451,16 @@ async function processSequentialDecisions(io: Server, gameId: string, decisionOr
     // Si es jugador humano, esperar a que decida
     const priorActions = gameService.getPriorActionsMasked(gameId);
     const position = decisionOrder.indexOf(pid);
-    io.to(game.roomCode).emit('next-player-turn', {
+
+    // Enviar evento solo al jugador cuyo turno es
+    const playerSocket = pid === 'player1' ? game.players.player1.socketId : game.players.player2.socketId;
+    io.to(playerSocket).emit('next-player-turn', {
+      playerId: pid,
       position,
       priorActions
     });
+
+    logger.info(`Notified ${pid} (socket ${playerSocket}) that it's their turn in sequential mode`);
 
     // Salir del loop - esperamos a que el jugador humano decida (se maneja en submit-decision)
     return;

@@ -31,7 +31,7 @@ export interface ServerToClientEvents {
   'decision-received': (data: { playerId: string }) => void;
 
   // Sequential mode specific
-  'next-player-turn': (data: { position: number; priorActions: string[] }) => void;
+  'next-player-turn': (data: { playerId: string; position: number; priorActions: string[] }) => void;
   'decision-revealed': (data: { decision: Decision; position: number }) => void;
 
   // Results

@@ -1,6 +1,6 @@
 // components/HomePage.tsx - Página principal
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
 import { useSocketInstance } from '../hooks/useSocket';
 import type { GameMode } from '../types/game';
@@ -13,6 +13,28 @@ export const HomePage: React.FC = () => {
   const [roomCode, setRoomCode] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [isMultiplayer, setIsMultiplayer] = useState(false);
+  const [waitingForRoomCreation, setWaitingForRoomCreation] = useState(false);
+
+  // Escuchar cuando se crea una sala y auto-iniciar si es vs IA
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRoomCreated = (data: { roomCode: string; playerId: string }) => {
+      console.log('Room created, waiting flag:', waitingForRoomCreation);
+      if (waitingForRoomCreation && !isMultiplayer) {
+        console.log('Auto-starting game for room:', data.roomCode);
+        // Iniciar juego automáticamente en modo vs IA
+        socket.emit('start-game', { roomCode: data.roomCode });
+        setWaitingForRoomCreation(false);
+      }
+    };
+
+    socket.on('room-created', handleRoomCreated);
+
+    return () => {
+      socket.off('room-created', handleRoomCreated);
+    };
+  }, [socket, waitingForRoomCreation, isMultiplayer]);
 
   const handleCreateVsAI = () => {
     setIsMultiplayer(false);
@@ -22,19 +44,13 @@ export const HomePage: React.FC = () => {
   const handleStartGame = () => {
     if (!socket) return;
 
+    // Marcar que estamos esperando la creación de sala
+    if (!isMultiplayer) {
+      setWaitingForRoomCreation(true);
+    }
+
     // Crear sala
     socket.emit('create-room', { mode: selectedMode });
-
-    // Si es vs IA, iniciar juego automáticamente después de crear la sala
-    if (!isMultiplayer) {
-      // Esperar un momento para que se cree la sala y luego iniciar el juego
-      setTimeout(() => {
-        const currentRoomCode = useGameStore.getState().roomCode;
-        if (currentRoomCode) {
-          socket.emit('start-game', { roomCode: currentRoomCode });
-        }
-      }, 500);
-    }
 
     setShowModeSelection(false);
   };
