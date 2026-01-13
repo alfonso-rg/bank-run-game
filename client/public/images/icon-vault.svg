@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+
+  <!-- Fondo -->
+  <rect x="16" y="16" width="224" height="224" rx="24" fill="#F4F6F8" stroke="#2C2C2C" stroke-width="8"></rect>
+
+  <!-- Cuerpo de la caja fuerte -->
+  <rect x="48" y="48" width="160" height="160" rx="16" fill="#D9DEE3" stroke="#2C2C2C" stroke-width="8"></rect>
+
+  <!-- Puerta interior -->
+  <circle cx="128" cy="128" r="48" fill="#FFFFFF" stroke="#2C2C2C" stroke-width="8"></circle>
+
+  <!-- Dial central -->
+  <circle cx="128" cy="128" r="12" fill="#2C2C2C"></circle>
+
+  <!-- Rayos del dial -->
+  <line x1="128" y1="76" x2="128" y2="96" stroke="#2C2C2C" stroke-width="6"></line>
+  <line x1="128" y1="160" x2="128" y2="180" stroke="#2C2C2C" stroke-width="6"></line>
+  <line x1="76" y1="128" x2="96" y2="128" stroke="#2C2C2C" stroke-width="6"></line>
+  <line x1="160" y1="128" x2="180" y2="128" stroke="#2C2C2C" stroke-width="6"></line>
+
+  <!-- Bisagras -->
+  <rect x="40" y="88" width="12" height="32" rx="4" fill="#2C2C2C"></rect>
+  <rect x="40" y="136" width="12" height="32" rx="4" fill="#2C2C2C"></rect>
+
+</svg>

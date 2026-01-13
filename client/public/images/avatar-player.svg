@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+
+  <!-- Fondo -->
+  <rect x="8" y="8" width="112" height="112" rx="16" fill="#F4F6F8" stroke="#1F2933" stroke-width="4"></rect>
+
+  <!-- Cabeza -->
+  <circle cx="64" cy="44" r="20" fill="#D1D5DB" stroke="#1F2933" stroke-width="4"></circle>
+
+  <!-- Cuerpo -->
+  <path d="
+    M32 96
+    C32 72 48 64 64 64
+    C80 64 96 72 96 96
+    V104
+    H32
+    Z" fill="#D1D5DB" stroke="#1F2933" stroke-width="4"></path>
+
+</svg>

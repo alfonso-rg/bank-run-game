@@ -1,0 +1,245 @@
+// types.ts - Tipos compartidos para todo el proyecto
+
+export type GameMode = 'sequential' | 'simultaneous';
+export type Decision = 'KEEP' | 'WITHDRAW';
+export type PlayerId = 'player1' | 'player2' | 'llm';
+export type PaidWhen = 'immediate' | 'deferred';
+
+export type GameStatus =
+  | 'LOBBY'            // Sala de espera
+  | 'STARTING'         // Iniciando juego
+  | 'ROUND_DECISION'   // Jugadores decidiendo
+  | 'ROUND_REVEALING'  // Solo secuencial: revelando decisiones
+  | 'ROUND_RESULTS'    // Mostrando resultados de ronda
+  | 'GAME_OVER';       // Juego terminado
+
+export interface Payoffs {
+  success: number;    // 70 ECUs cuando ambos pacientes KEEP
+  withdraw: number;   // 50 ECUs para primeros 2 retiros
+  failure: number;    // 20 ECUs para el resto
+}
+
+export const DEFAULT_PAYOFFS: Payoffs = {
+  success: 70,
+  withdraw: 50,
+  failure: 20
+};
+
+export interface PlayerInfo {
+  playerId: PlayerId;
+  playerName: string;
+  socketId: string;
+  connected: boolean;
+  isLLM: boolean;
+  profile?: PlayerProfile;  // Para LLM roleplay
+}
+
+export interface PlayerProfile {
+  gender: string;
+  age_band: string;
+  education: string;
+  institutional_trust_0_10: number;
+}
+
+export interface LLMPlayerInfo extends PlayerInfo {
+  isLLM: true;
+}
+
+export interface GameConfig {
+  payoffs: Payoffs;
+  totalRounds: number;
+  decisionTimeoutMs: number;
+  mode: GameMode;
+}
+
+export const DEFAULT_GAME_CONFIG: GameConfig = {
+  payoffs: DEFAULT_PAYOFFS,
+  totalRounds: 5,
+  decisionTimeoutMs: 30000,  // 30 segundos
+  mode: 'simultaneous'
+};
+
+export interface RoundDecision {
+  playerId: PlayerId;
+  decision: Decision | null;
+  timestamp: Date;
+  raw?: string;  // Respuesta raw del LLM
+}
+
+export interface RoundPayoff {
+  player1: number;
+  player2: number;
+  llm: number;
+}
+
+export interface RoundResult {
+  round: number;
+  decisions: {
+    player1: Decision;
+    player2: Decision;
+    llm: Decision;
+  };
+  payoffs: RoundPayoff;
+  decisionOrder: PlayerId[];  // Orden en que decidieron
+  paidWhen?: {
+    player1: PaidWhen;
+    player2: PaidWhen;
+    llm: PaidWhen;
+  };
+  seqTrace?: string;  // Traza del flujo secuencial
+}
+
+export interface CurrentRound {
+  roundNumber: number;
+  decisions: Map<PlayerId, Decision | null>;
+  decisionOrder: PlayerId[];       // Orden aleatorio (importante para secuencial)
+  revealedDecisions: PlayerId[];   // Solo modo secuencial
+  timerStartedAt: Date | null;
+  timerInterval?: NodeJS.Timeout;  // Para limpiar el interval
+}
+
+export interface GameState {
+  gameId: string;
+  roomCode: string;
+  mode: GameMode;
+  status: GameStatus;
+
+  players: {
+    player1: PlayerInfo;
+    player2: PlayerInfo;
+    llm: LLMPlayerInfo;
+  };
+
+  config: GameConfig;
+  currentRound: CurrentRound;
+  roundHistory: RoundResult[];
+
+  createdAt: Date;
+  startedAt?: Date;
+  endedAt?: Date;
+
+  reconnectionTokens: {
+    [key in PlayerId]?: string;
+  };
+}
+
+// Tipos para MongoDB Schemas
+
+export interface RoomDocument {
+  code: string;
+  mode: GameMode;
+  players: {
+    playerId: string;
+    playerName: string;
+    socketId: string;
+    joinedAt: Date;
+  }[];
+  status: 'LOBBY' | 'IN_PROGRESS' | 'FINISHED';
+  gameId?: string;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+export interface GameResultDocument {
+  gameId: string;
+  roomCode: string;
+  mode: GameMode;
+  timestamp: Date;
+
+  rounds: {
+    round: number;
+    decisions: {
+      player1: Decision;
+      player2: Decision;
+      llm: Decision;
+    };
+    payoffs: RoundPayoff;
+    decisionOrder: string[];
+    paidWhen?: {
+      player1: PaidWhen;
+      player2: PaidWhen;
+      llm: PaidWhen;
+    };
+    seqTrace?: string;
+  }[];
+
+  totalPayoffs: RoundPayoff;
+  playerTypes: ('human' | 'llm')[];
+
+  sessionMetadata: {
+    roomCode?: string;
+    llmModel: string;
+    llmResponses: string[];
+    playerProfiles?: {
+      player1?: PlayerProfile;
+      player2?: PlayerProfile;
+    };
+  };
+
+  reconnectionTokens: {
+    [key: string]: string;
+  };
+}
+
+// Tipos para eventos Socket.io
+
+export interface SocketEvents {
+  // Cliente → Servidor
+  'create-room': (data: { mode: GameMode }) => void;
+  'join-room': (data: { roomCode: string; playerName: string }) => void;
+  'leave-room': (data: { roomCode: string }) => void;
+  'start-game': (data: { roomCode: string; config?: Partial<GameConfig> }) => void;
+  'submit-decision': (data: { gameId: string; decision: Decision }) => void;
+  'ready-next-round': (data: { gameId: string }) => void;
+  'request-reconnect': (data: { gameId: string; playerId: string }) => void;
+
+  // Servidor → Cliente
+  'room-created': (data: { roomCode: string; playerId: string }) => void;
+  'room-joined': (data: { roomCode: string; players: PlayerInfo[] }) => void;
+  'room-full': (data: { roomCode: string }) => void;
+  'player-joined': (data: { player: PlayerInfo }) => void;
+  'player-left': (data: { playerId: string }) => void;
+  'player-disconnected': (data: { playerId: string }) => void;
+  'player-reconnected': (data: { playerId: string; gameState: GameState }) => void;
+
+  'game-starting': (data: { gameState: GameState }) => void;
+  'round-starting': (data: { roundNumber: number; decisionOrder?: string[] }) => void;
+  'timer-update': (data: { startTime: number; durationMs: number; remainingMs: number }) => void;
+  'decision-received': (data: { playerId: string }) => void;
+
+  // Sequential mode specific
+  'next-player-turn': (data: { position: number; priorActions: string[] }) => void;
+  'decision-revealed': (data: { decision: Decision; position: number }) => void;
+
+  'round-complete': (data: { results: RoundResult }) => void;
+  'game-over': (data: { finalResults: GameResultDocument }) => void;
+
+  'error': (data: { code: string; message: string }) => void;
+}
+
+// Constantes útiles
+
+export const PLAYER_IDS: PlayerId[] = ['player1', 'player2', 'llm'];
+
+export const GAME_STATUSES: GameStatus[] = [
+  'LOBBY',
+  'STARTING',
+  'ROUND_DECISION',
+  'ROUND_REVEALING',
+  'ROUND_RESULTS',
+  'GAME_OVER'
+];
+
+// Funciones helper de tipos
+
+export function isValidDecision(value: any): value is Decision {
+  return value === 'KEEP' || value === 'WITHDRAW';
+}
+
+export function isValidGameMode(value: any): value is GameMode {
+  return value === 'sequential' || value === 'simultaneous';
+}
+
+export function isValidPlayerId(value: any): value is PlayerId {
+  return PLAYER_IDS.includes(value);
+}
