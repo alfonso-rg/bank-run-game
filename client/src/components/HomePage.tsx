@@ -12,15 +12,31 @@ export const HomePage: React.FC = () => {
   const [selectedMode, setSelectedMode] = useState<GameMode>('simultaneous');
   const [roomCode, setRoomCode] = useState('');
   const [playerName, setPlayerName] = useState('');
+  const [isMultiplayer, setIsMultiplayer] = useState(false);
 
   const handleCreateVsAI = () => {
+    setIsMultiplayer(false);
     setShowModeSelection(true);
   };
 
-  const handleStartVsAI = () => {
+  const handleStartGame = () => {
     if (!socket) return;
+
+    // Crear sala
     socket.emit('create-room', { mode: selectedMode });
-    // El juego vs IA se iniciará automáticamente cuando se cree la sala
+
+    // Si es vs IA, iniciar juego automáticamente después de crear la sala
+    if (!isMultiplayer) {
+      // Esperar un momento para que se cree la sala y luego iniciar el juego
+      setTimeout(() => {
+        const currentRoomCode = useGameStore.getState().roomCode;
+        if (currentRoomCode) {
+          socket.emit('start-game', { roomCode: currentRoomCode });
+        }
+      }, 500);
+    }
+
+    setShowModeSelection(false);
   };
 
   const handleJoinMultiplayer = () => {
@@ -34,6 +50,7 @@ export const HomePage: React.FC = () => {
 
   const handleCreateMultiplayer = () => {
     if (!socket) return;
+    setIsMultiplayer(true);
     setShowModeSelection(true);
   };
 
@@ -45,7 +62,7 @@ export const HomePage: React.FC = () => {
           <img
             src="/images/hero-bank.png"
             alt="Bank"
-            className="mx-auto mb-6 w-full max-w-2xl rounded-lg shadow-xl"
+            className="mx-auto mb-6 w-full max-w-xs rounded-lg shadow-xl"
           />
           <h1 className="text-5xl md:text-6xl font-bold text-primary mb-4">
             Bank Run Game
@@ -126,7 +143,7 @@ export const HomePage: React.FC = () => {
                   Cancelar
                 </Button>
                 <Button
-                  onClick={handleStartVsAI}
+                  onClick={handleStartGame}
                   fullWidth
                 >
                   Comenzar
