@@ -5,13 +5,19 @@ Un juego web interactivo de coordinación económica basado en el modelo de Diam
 ## Descripción del Juego
 
 Este es un juego de coordinación con 3 depositantes en un banco:
-- Cada depositante tiene 40 ECUs depositados
-- El banco ofrece:
-  - 50 ECUs por retiro inmediato
-  - 70 ECUs si esperas y el proyecto madura con éxito
-  - 20 ECUs en caso de fallo (failure)
-- Un depositante siempre tiene shock de liquidez y retirará con seguridad
-- Los otros 2 deben coordinar su decisión
+- **Jugador 1 (Paciente)**: Humano que debe decidir entre ESPERAR o RETIRAR
+- **Jugador 2 (Paciente)**: Humano o LLM (en modo vs IA) que debe decidir
+- **Autómata (Impaciente)**: Siempre retira inmediatamente
+
+Payoffs por ronda:
+  - **70 ECUs**: Si ambos pacientes ESPERAN (éxito)
+  - **50 ECUs**: Para los primeros 2 retiros (el autómata siempre es uno de ellos)
+  - **20 ECUs**: Para retiros tardíos (failure)
+
+El autómata SIEMPRE retira, lo que significa:
+- Si ambos pacientes ESPERAN: ambos obtienen 70 ECUs ✅
+- Si un paciente RETIRA: obtiene 50 ECUs, el otro 20 ECUs
+- Si ambos pacientes RETIRAN: ambos obtienen 20 ECUs (el autómata y el primer paciente obtienen 50)
 
 ## Stack Tecnológico
 
@@ -36,32 +42,64 @@ bank-run-game/
 └── README.md        # Este archivo
 ```
 
-## Instalación
+## Instalación y Ejecución
 
 ### Prerrequisitos
 - Node.js 18+ instalado
-- MongoDB Atlas cuenta (tier gratuito)
-- OpenAI API key
+- MongoDB Atlas cuenta (tier gratuito) - [Crear cuenta](https://www.mongodb.com/cloud/atlas/register)
+- OpenAI API key - [Obtener API key](https://platform.openai.com/api-keys)
 
-### Setup Backend
+### Paso 1: Clonar el repositorio
+
+```bash
+git clone <url-del-repo>
+cd bank-run-game
+```
+
+### Paso 2: Setup Backend
 
 ```bash
 cd server
 npm install
-cp .env.example .env
-# Editar .env con tus credenciales
-npm run dev
+
+# El archivo .env ya existe, solo necesitas verificar/actualizar:
+# - MONGODB_URI: tu URI de MongoDB Atlas
+# - OPENAI_API_KEY: tu API key de OpenAI (ya configurada si usaste la del proyecto Python)
 ```
 
-### Setup Frontend
+### Paso 3: Setup Frontend
 
 ```bash
-cd client
+cd ../client
 npm install
-cp .env.example .env
-# Editar .env con la URL del backend
-npm run dev
+
+# El archivo .env ya está configurado para desarrollo local
+# No necesitas modificar nada
 ```
+
+### Paso 4: Ejecutar ambos servidores
+
+En dos terminales diferentes:
+
+**Terminal 1 - Backend:**
+```bash
+cd server
+npm run dev
+# El servidor se ejecutará en http://localhost:3001
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd client
+npm run dev
+# La aplicación se abrirá en http://localhost:5173
+```
+
+### Verificar que funciona
+
+1. Abre http://localhost:5173 en tu navegador
+2. Deberías ver la página principal con las opciones "Jugar contra IA" y "Multijugador"
+3. Para probar multijugador, abre dos pestañas/ventanas del navegador
 
 ## Variables de Entorno
 
