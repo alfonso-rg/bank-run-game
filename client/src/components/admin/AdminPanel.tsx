@@ -25,7 +25,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
     filters,
     selectedGame,
     stats,
-    loadingStats,
     setGames,
     setLoading,
     setError,
