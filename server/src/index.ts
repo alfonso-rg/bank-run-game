@@ -7,6 +7,7 @@ import { connectDatabase } from './config/database';
 import { logger } from './config/logger';
 import { setupGameHandlers } from './socket/gameHandlers';
 import adminRoutes from './routes/admin';
+import { getGlobalConfig } from './models/GlobalConfig';
 import path from 'path';
 import fs from 'fs';
 
@@ -55,6 +56,17 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'running'
   });
+});
+
+// Endpoint público para obtener la configuración del juego (sin autenticación)
+app.get('/api/config', async (req, res) => {
+  try {
+    const config = await getGlobalConfig();
+    res.json(config);
+  } catch (error) {
+    logger.error('Error fetching public config:', error);
+    res.status(500).json({ error: 'Failed to fetch config' });
+  }
 });
 
 // Rutas de administración

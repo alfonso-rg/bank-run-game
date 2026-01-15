@@ -1,6 +1,6 @@
 // components/admin/AdminPanel.tsx - Panel principal de administración
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { Button } from '../ui/Button';
 import { useAdminStore } from '../../stores/adminStore';
 import {
@@ -8,7 +8,10 @@ import {
   fetchStats,
   exportGames,
   logoutAdmin,
-  type GameData
+  fetchGlobalConfig,
+  updateGlobalConfig,
+  type GameData,
+  type GlobalGameConfig
 } from '../../services/adminApi';
 import { GameDetail } from './GameDetail';
 
@@ -35,6 +38,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
     setLoadingStats,
     reset
   } = useAdminStore();
+
+  // Estado para la configuración global
+  const [globalConfig, setGlobalConfig] = useState<GlobalGameConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
 
   const loadGames = useCallback(async () => {
     setLoading(true);
@@ -71,6 +79,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  // Cargar configuración global
+  const loadConfig = useCallback(async () => {
+    setConfigLoading(true);
+    try {
+      const config = await fetchGlobalConfig();
+      setGlobalConfig(config);
+    } catch (err) {
+      console.error('Error loading config:', err);
+    } finally {
+      setConfigLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  // Guardar configuración global
+  const handleSaveConfig = async () => {
+    if (!globalConfig) return;
+
+    setConfigSaving(true);
+    try {
+      const updated = await updateGlobalConfig({
+        opponentType: globalConfig.opponentType,
+        gameMode: globalConfig.gameMode,
+        totalRounds: globalConfig.totalRounds
+      });
+      setGlobalConfig(updated);
+      alert('Configuracion guardada correctamente');
+    } catch (err) {
+      alert('Error al guardar la configuracion');
+    } finally {
+      setConfigSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     logoutAdmin();
@@ -153,6 +198,98 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
             </div>
           </div>
         )}
+
+        {/* Configuracion Global del Juego */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Configuracion del Modo de Juego
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Esta configuracion se aplica a todos los jugadores que accedan a jugar.
+          </p>
+
+          {configLoading ? (
+            <div className="text-center text-gray-500 py-4">Cargando configuracion...</div>
+          ) : globalConfig ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de oponente
+                </label>
+                <select
+                  value={globalConfig.opponentType}
+                  onChange={(e) =>
+                    setGlobalConfig({
+                      ...globalConfig,
+                      opponentType: e.target.value as 'ai' | 'human'
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                >
+                  <option value="ai">Inteligencia Artificial</option>
+                  <option value="human">Multijugador (Humano)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Modo de juego
+                </label>
+                <select
+                  value={globalConfig.gameMode}
+                  onChange={(e) =>
+                    setGlobalConfig({
+                      ...globalConfig,
+                      gameMode: e.target.value as 'sequential' | 'simultaneous'
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                >
+                  <option value="simultaneous">Simultaneo</option>
+                  <option value="sequential">Secuencial</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Numero de rondas
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    value={globalConfig.totalRounds}
+                    onChange={(e) =>
+                      setGlobalConfig({
+                        ...globalConfig,
+                        totalRounds: Number(e.target.value)
+                      })
+                    }
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-xl font-bold text-primary w-8 text-center">
+                    {globalConfig.totalRounds}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-red-500 py-4">Error al cargar configuracion</div>
+          )}
+
+          {globalConfig && (
+            <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
+              <p className="text-xs text-gray-500">
+                Ultima actualizacion:{' '}
+                {globalConfig.updatedAt
+                  ? new Date(globalConfig.updatedAt).toLocaleString('es-ES')
+                  : 'Nunca'}
+              </p>
+              <Button onClick={handleSaveConfig} disabled={configSaving}>
+                {configSaving ? 'Guardando...' : 'Guardar configuracion'}
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Filtros */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">

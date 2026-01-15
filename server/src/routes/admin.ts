@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { GameResult } from '../models/GameResult';
+import { getGlobalConfig, updateGlobalConfig } from '../models/GlobalConfig';
 import { logger } from '../config/logger';
 
 const router = Router();
@@ -234,6 +235,60 @@ router.get('/stats', adminAuth, async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+/**
+ * GET /api/admin/config
+ * Obtiene la configuración global del juego
+ */
+router.get('/config', adminAuth, async (req: Request, res: Response) => {
+  try {
+    const config = await getGlobalConfig();
+    res.json(config);
+  } catch (error) {
+    logger.error('Error fetching global config:', error);
+    res.status(500).json({ error: 'Failed to fetch config' });
+  }
+});
+
+/**
+ * PUT /api/admin/config
+ * Actualiza la configuración global del juego
+ */
+router.put('/config', adminAuth, async (req: Request, res: Response) => {
+  try {
+    const { opponentType, gameMode, totalRounds } = req.body;
+
+    // Validar valores
+    if (opponentType && !['ai', 'human'].includes(opponentType)) {
+      res.status(400).json({ error: 'Invalid opponentType. Must be "ai" or "human"' });
+      return;
+    }
+
+    if (gameMode && !['sequential', 'simultaneous'].includes(gameMode)) {
+      res.status(400).json({ error: 'Invalid gameMode. Must be "sequential" or "simultaneous"' });
+      return;
+    }
+
+    if (totalRounds !== undefined && (totalRounds < 1 || totalRounds > 20)) {
+      res.status(400).json({ error: 'Invalid totalRounds. Must be between 1 and 20' });
+      return;
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (opponentType) updates.opponentType = opponentType;
+    if (gameMode) updates.gameMode = gameMode;
+    if (totalRounds !== undefined) updates.totalRounds = totalRounds;
+
+    const config = await updateGlobalConfig(updates);
+
+    logger.info(`Global config updated: ${JSON.stringify(config)}`);
+
+    res.json(config);
+  } catch (error) {
+    logger.error('Error updating global config:', error);
+    res.status(500).json({ error: 'Failed to update config' });
   }
 });
 

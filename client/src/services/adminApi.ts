@@ -11,6 +11,13 @@ export interface GameFilters {
   limit?: number;
 }
 
+export interface GlobalGameConfig {
+  opponentType: 'ai' | 'human';
+  gameMode: 'sequential' | 'simultaneous';
+  totalRounds: number;
+  updatedAt: string;
+}
+
 export interface DecisionTimes {
   player1: number;
   player2: number;
@@ -251,4 +258,59 @@ export function logoutAdmin(): void {
  */
 export function isAdminLoggedIn(): boolean {
   return !!sessionStorage.getItem('adminPassword');
+}
+
+/**
+ * Obtiene la configuración global del juego (admin)
+ */
+export async function fetchGlobalConfig(): Promise<GlobalGameConfig> {
+  const response = await fetch(`${API_URL}/api/admin/config`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      sessionStorage.removeItem('adminPassword');
+      throw new Error('Unauthorized');
+    }
+    throw new Error('Failed to fetch config');
+  }
+
+  return response.json();
+}
+
+/**
+ * Actualiza la configuración global del juego (admin)
+ */
+export async function updateGlobalConfig(
+  config: Partial<Omit<GlobalGameConfig, 'updatedAt'>>
+): Promise<GlobalGameConfig> {
+  const response = await fetch(`${API_URL}/api/admin/config`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(config)
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      sessionStorage.removeItem('adminPassword');
+      throw new Error('Unauthorized');
+    }
+    throw new Error('Failed to update config');
+  }
+
+  return response.json();
+}
+
+/**
+ * Obtiene la configuración global del juego (público, sin autenticación)
+ */
+export async function fetchPublicConfig(): Promise<GlobalGameConfig> {
+  const response = await fetch(`${API_URL}/api/config`);
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch config');
+  }
+
+  return response.json();
 }
