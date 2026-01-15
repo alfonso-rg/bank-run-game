@@ -73,14 +73,23 @@ const setupSocketListeners = () => {
   socket.on('room-joined', (data) => {
     console.log('Room joined:', data);
     const store = useGameStore.getState();
-    // Configurar sala de espera si no existe gameState
+
+    // Convertir players del servidor al formato del cliente
+    const players = data.players.map((p: any) => ({
+      playerName: p.playerName,
+      playerId: p.playerId
+    }));
+
+    // Si ya estoy en esta sala (soy el creador), solo actualizar lista de jugadores
+    if (store.roomCode === data.roomCode) {
+      store.setWaitingPlayers(players);
+      // No mostrar toast al creador
+      return;
+    }
+
+    // Si soy nuevo en la sala, configurar todo
     if (!store.gameState) {
       store.setWaitingRoom(data.mode, true);
-      // Convertir players del servidor al formato del cliente
-      const players = data.players.map((p: any) => ({
-        playerName: p.playerName,
-        playerId: p.playerId
-      }));
       store.setWaitingPlayers(players);
     }
     useGameStore.setState({ roomCode: data.roomCode });
@@ -99,11 +108,7 @@ const setupSocketListeners = () => {
 
   socket.on('player-joined', (data) => {
     console.log('Player joined:', data);
-    // Añadir jugador a la lista de espera
-    useGameStore.getState().addWaitingPlayer({
-      playerName: data.player.playerName,
-      playerId: data.player.playerId
-    });
+    // Solo mostrar notificación (room-joined ya actualiza la lista de jugadores)
     toast.success(`${data.player.playerName} se ha unido`);
   });
 
