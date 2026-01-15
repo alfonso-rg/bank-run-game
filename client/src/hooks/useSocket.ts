@@ -132,6 +132,20 @@ const setupSocketListeners = () => {
   socket.on('game-starting', (data) => {
     console.log('Game starting:', data);
     setGameState(data.gameState);
+
+    // Si no tenemos myPlayerId, determinarlo desde el gameState usando socketId
+    const store = useGameStore.getState();
+    if (!store.myPlayerId && socket.id) {
+      const gameState = data.gameState;
+      if (gameState.players.player1.socketId === socket.id) {
+        useGameStore.setState({ myPlayerId: 'player1' });
+        console.log('Determined myPlayerId from gameState: player1');
+      } else if (gameState.players.player2.socketId === socket.id) {
+        useGameStore.setState({ myPlayerId: 'player2' });
+        console.log('Determined myPlayerId from gameState: player2');
+      }
+    }
+
     toast.success('¡El juego comienza!');
   });
 
