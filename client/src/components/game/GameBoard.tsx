@@ -158,6 +158,13 @@ export const GameBoard: React.FC = () => {
 
             {isDecisionPhase && isMyTurn && !hasDecided && (
               <div className="space-y-4">
+                {gameState.mode === 'sequential' && gameState.currentRound.revealedDecisions.length === 0 && (
+                  <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <p className="text-yellow-800 font-semibold text-center">
+                      Eres el primero en decidir esta ronda
+                    </p>
+                  </div>
+                )}
                 <p className="text-gray-600 mb-4">
                   ¡Es tu turno! Elige tu acción:
                 </p>
@@ -198,7 +205,7 @@ export const GameBoard: React.FC = () => {
                   <span className="text-3xl">✓</span>
                 </div>
                 <p className="text-gray-800 font-semibold mb-2">
-                  Decisión enviada: {myDecision}
+                  Decisión enviada: {myDecision === 'KEEP' ? 'ESPERAR' : 'RETIRAR'}
                 </p>
                 <p className="text-sm text-gray-600">
                   Esperando a los demás jugadores...

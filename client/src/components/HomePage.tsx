@@ -90,8 +90,8 @@ export const HomePage: React.FC = () => {
             Bank Run Game
           </h1>
           <p className="text-xl text-gray-700 max-w-2xl mx-auto">
-            Juego de coordinación basado en el modelo Diamond-Dybvig.
-            Eres un depositante en un banco con dos opciones: retirar inmediatamente o esperar.
+            Juego de coordinación económica.
+            Eres un depositante en un banco con dos opciones: retirar tu dinero ahora o esperar.
           </p>
         </div>
 

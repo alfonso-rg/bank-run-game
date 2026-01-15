@@ -539,7 +539,7 @@ async function finalizeRound(io: Server, gameId: string): Promise<void> {
 
   logger.info(`Round ${result.round} complete in game ${gameId}`);
 
-  // Auto-avanzar después de 5 segundos
+  // Auto-avanzar después de 8 segundos (tiempo para leer resultados)
   setTimeout(async () => {
     const hasNext = gameService.nextRound(gameId);
     if (hasNext) {
@@ -547,7 +547,7 @@ async function finalizeRound(io: Server, gameId: string): Promise<void> {
     } else {
       await endGame(io, gameId);
     }
-  }, 5000);
+  }, 8000);
 }
 
 async function endGame(io: Server, gameId: string): Promise<void> {
