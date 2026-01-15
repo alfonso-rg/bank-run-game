@@ -11,6 +11,7 @@ export const HomePage: React.FC = () => {
   const [showModeSelection, setShowModeSelection] = useState(false);
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const [selectedMode, setSelectedMode] = useState<GameMode>('simultaneous');
+  const [totalRounds, setTotalRounds] = useState(5);
   const [roomCode, setRoomCode] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [isMultiplayer, setIsMultiplayer] = useState(false);
@@ -25,7 +26,7 @@ export const HomePage: React.FC = () => {
       if (waitingForRoomCreation && !isMultiplayer) {
         console.log('Auto-starting game for room:', data.roomCode);
         // Iniciar juego automáticamente en modo vs IA
-        socket.emit('start-game', { roomCode: data.roomCode });
+        socket.emit('start-game', { roomCode: data.roomCode, config: { totalRounds } });
         setWaitingForRoomCreation(false);
       }
     };
@@ -35,7 +36,7 @@ export const HomePage: React.FC = () => {
     return () => {
       socket.off('room-created', handleRoomCreated);
     };
-  }, [socket, waitingForRoomCreation, isMultiplayer]);
+  }, [socket, waitingForRoomCreation, isMultiplayer, totalRounds]);
 
   const handleCreateVsAI = () => {
     setIsMultiplayer(false);
@@ -51,7 +52,7 @@ export const HomePage: React.FC = () => {
     } else {
       // Guardar info para mostrar WaitingRoom en multijugador
       const store = useGameStore.getState();
-      store.setWaitingRoom(selectedMode, true);
+      store.setWaitingRoom(selectedMode, true, totalRounds);
       store.setWaitingPlayers([{ playerName: 'Tú', playerId: 'player1' }]);
     }
 
@@ -154,6 +155,29 @@ export const HomePage: React.FC = () => {
                     Los jugadores deciden en orden, viendo decisiones previas
                   </p>
                 </button>
+              </div>
+
+              {/* Selector de número de rondas */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Número de rondas
+                </label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    value={totalRounds}
+                    onChange={(e) => setTotalRounds(Number(e.target.value))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-2xl font-bold text-primary w-12 text-center">
+                    {totalRounds}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Selecciona entre 1 y 20 rondas
+                </p>
               </div>
 
               <div className="flex gap-3">

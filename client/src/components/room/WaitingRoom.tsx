@@ -3,6 +3,7 @@
 import React from 'react';
 import { Button } from '../ui/Button';
 import { useSocketInstance } from '../../hooks/useSocket';
+import { useGameStore } from '../../stores/gameStore';
 import type { GameMode } from '../../types/game';
 
 interface WaitingRoomProps {
@@ -19,10 +20,11 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({
   isCreator,
 }) => {
   const socket = useSocketInstance();
+  const { waitingRoomRounds } = useGameStore();
 
   const handleStartGame = () => {
     if (!socket) return;
-    socket.emit('start-game', { roomCode });
+    socket.emit('start-game', { roomCode, config: { totalRounds: waitingRoomRounds } });
   };
 
   const canStart = players.length === 2 && isCreator;
@@ -33,8 +35,11 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({
         <h1 className="text-3xl font-bold text-primary mb-2 text-center">
           Sala de Espera
         </h1>
-        <p className="text-gray-600 text-center mb-6">
+        <p className="text-gray-600 text-center mb-2">
           Modo: <span className="font-semibold">{mode === 'simultaneous' ? 'Simultáneo' : 'Secuencial'}</span>
+        </p>
+        <p className="text-gray-600 text-center mb-6">
+          Rondas: <span className="font-semibold">{waitingRoomRounds}</span>
         </p>
 
         {/* Código de sala */}

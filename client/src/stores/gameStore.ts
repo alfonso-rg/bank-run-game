@@ -13,6 +13,7 @@ interface GameStore {
   waitingRoomMode: GameMode | null;
   isMultiplayerRoom: boolean;
   waitingPlayers: Array<{ playerName: string; playerId: string }>;
+  waitingRoomRounds: number;
 
   // Estado de conexión
   connected: boolean;
@@ -29,7 +30,7 @@ interface GameStore {
   setConnected: (connected: boolean) => void;
   setError: (error: string | null) => void;
   setMyTurnInSequential: (isMyTurn: boolean, priorActions?: string[]) => void;
-  setWaitingRoom: (mode: GameMode, isMultiplayer: boolean) => void;
+  setWaitingRoom: (mode: GameMode, isMultiplayer: boolean, rounds?: number) => void;
   setWaitingPlayers: (players: Array<{ playerName: string; playerId: string }>) => void;
   addWaitingPlayer: (player: { playerName: string; playerId: string }) => void;
 
@@ -48,6 +49,7 @@ export const useGameStore = create<GameStore>((set) => ({
   waitingRoomMode: null,
   isMultiplayerRoom: false,
   waitingPlayers: [],
+  waitingRoomRounds: 5,
   connected: false,
   error: null,
   isMyTurnInSequential: false,
@@ -62,9 +64,10 @@ export const useGameStore = create<GameStore>((set) => ({
     isMyTurnInSequential: isMyTurn,
     sequentialPriorActions: priorActions
   }),
-  setWaitingRoom: (mode, isMultiplayer) => set({
+  setWaitingRoom: (mode, isMultiplayer, rounds = 5) => set({
     waitingRoomMode: mode,
-    isMultiplayerRoom: isMultiplayer
+    isMultiplayerRoom: isMultiplayer,
+    waitingRoomRounds: rounds
   }),
   setWaitingPlayers: (players) => set({ waitingPlayers: players }),
   addWaitingPlayer: (player) => set((state) => ({
@@ -98,6 +101,7 @@ export const useGameStore = create<GameStore>((set) => ({
     waitingRoomMode: null,
     isMultiplayerRoom: false,
     waitingPlayers: [],
+    waitingRoomRounds: 5,
     connected: false,
     error: null,
     isMyTurnInSequential: false,
