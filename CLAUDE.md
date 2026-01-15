@@ -74,6 +74,7 @@ bank-run-game/
         │   └── logger.ts      # Winston logger
         ├── models/
         │   ├── GameResult.ts  # Schema resultados
+        │   ├── GlobalConfig.ts # Configuracion global del juego
         │   └── Room.ts        # Schema salas
         ├── routes/
         │   └── admin.ts       # Endpoints REST admin
@@ -164,8 +165,35 @@ LOBBY → STARTING → ROUND_DECISION → [ROUND_REVEALING] → ROUND_RESULTS �
 | `GET /games/:gameId` | Detalle de partida |
 | `GET /games/export` | Exportar JSON |
 | `GET /stats` | Estadisticas agregadas |
+| `GET /config` | Obtener configuracion global |
+| `PUT /config` | Actualizar configuracion global |
 
 **Filtros disponibles:** `mode`, `playerType`, `fromDate`, `toDate`, `page`, `limit`
+
+## API Publica
+
+| Endpoint | Descripcion |
+|----------|-------------|
+| `GET /api/config` | Obtener configuracion global (sin auth) |
+
+## Configuracion Global del Juego
+
+El admin puede configurar el modo de juego que veran todos los jugadores:
+
+```typescript
+{
+  opponentType: 'ai' | 'human',     // IA o Multijugador
+  gameMode: 'sequential' | 'simultaneous',
+  totalRounds: number,              // 1-20
+  updatedAt: Date
+}
+```
+
+- **opponentType:** Define si los jugadores juegan contra IA o contra otro humano
+- **gameMode:** Define si las decisiones son simultaneas o secuenciales
+- **totalRounds:** Numero de rondas por partida
+
+Los jugadores ven directamente esta configuracion en HomePage y no pueden cambiarla.
 
 ## Variables de Entorno
 
