@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
 import { useSocketInstance } from '../hooks/useSocket';
+import { useGameStore } from '../stores/gameStore';
 import type { GameMode } from '../types/game';
 
 export const HomePage: React.FC = () => {
@@ -47,6 +48,11 @@ export const HomePage: React.FC = () => {
     // Marcar que estamos esperando la creación de sala
     if (!isMultiplayer) {
       setWaitingForRoomCreation(true);
+    } else {
+      // Guardar info para mostrar WaitingRoom en multijugador
+      const store = useGameStore.getState();
+      store.setWaitingRoom(selectedMode, true);
+      store.setWaitingPlayers([{ playerName: 'Tú', playerId: 'player1' }]);
     }
 
     // Crear sala

@@ -123,21 +123,26 @@ export function setupGameHandlers(io: Server): void {
           socket.join(roomCode);
 
           const updatedRoom = matchmakingService.getRoom(roomCode)!;
+          const newPlayer = updatedRoom.players[updatedRoom.players.length - 1];
 
           // Emitir a todos en la sala
           io.to(roomCode).emit('room-joined', {
             roomCode,
-            players: updatedRoom.players
+            players: updatedRoom.players,
+            mode: updatedRoom.mode
           });
 
-          // Emitir específicamente al nuevo jugador
+          // Emitir específicamente al nuevo jugador su playerId
+          socket.emit('your-player-id', { playerId: newPlayer.playerId });
+
+          // Emitir a todos que un jugador se unió
           io.to(roomCode).emit('player-joined', {
-            player: updatedRoom.players[updatedRoom.players.length - 1]
+            player: newPlayer
           });
 
-          if (callback) callback({ success: true, roomCode });
+          if (callback) callback({ success: true, roomCode, playerId: newPlayer.playerId });
 
-          logger.info(`Player ${playerName} joined room ${roomCode}`);
+          logger.info(`Player ${playerName} joined room ${roomCode} as ${newPlayer.playerId}`);
         }
 
       } catch (error) {

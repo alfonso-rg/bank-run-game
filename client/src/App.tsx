@@ -12,7 +12,7 @@ function App() {
   // Inicializar socket
   useSocket();
 
-  const { gameState, roomCode, myPlayerId } = useGameStore();
+  const { gameState, roomCode, myPlayerId, waitingRoomMode, isMultiplayerRoom, waitingPlayers } = useGameStore();
 
   // Routing basado en el estado del juego
   const renderView = () => {
@@ -21,7 +21,19 @@ function App() {
       return <HomePage />;
     }
 
-    // Sala de espera (solo multijugador)
+    // Sala de espera multijugador (sin gameState todavía)
+    if (!gameState && roomCode && isMultiplayerRoom && waitingRoomMode) {
+      return (
+        <WaitingRoom
+          roomCode={roomCode}
+          players={waitingPlayers}
+          mode={waitingRoomMode}
+          isCreator={myPlayerId === 'player1'}
+        />
+      );
+    }
+
+    // Sala de espera (con gameState en LOBBY)
     if (gameState && gameState.status === 'LOBBY') {
       const players = [
         { playerName: gameState.players.player1.playerName, playerId: 'player1' },
