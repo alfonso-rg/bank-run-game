@@ -74,7 +74,7 @@ export interface CurrentRound {
   roundNumber: number;
   decisions: Map<PlayerId, Decision | null>;
   decisionOrder: PlayerId[];
-  revealedDecisions: PlayerId[];
+  revealedDecisions: Decision[];
   timerStartedAt: Date | null;
 }
 

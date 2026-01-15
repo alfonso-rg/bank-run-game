@@ -39,7 +39,7 @@ const setupSocketListeners = () => {
   if (!socketInstance || isInitialized) return;
 
   const socket = socketInstance;
-  const { setConnected, setGameState, setError, updateRoundResult, updateGameStatus, setMyTurnInSequential } = useGameStore.getState();
+  const { setConnected, setGameState, setError, updateRoundResult, updateGameStatus } = useGameStore.getState();
 
   isInitialized = true;
 
@@ -123,7 +123,7 @@ const setupSocketListeners = () => {
             roundNumber: data.roundNumber,
             decisions: new Map(),
             revealedDecisions: [],
-            decisionOrder: data.decisionOrder || currentState.currentRound.decisionOrder,
+            decisionOrder: (data.decisionOrder as import('../types/game').PlayerId[]) || currentState.currentRound.decisionOrder,
             timerStartedAt: new Date(),
           }
         }
