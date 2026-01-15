@@ -17,12 +17,13 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   // Room management
   'room-created': (data: { roomCode: string; playerId: string }) => void;
-  'room-joined': (data: { roomCode: string; players: PlayerInfo[] }) => void;
+  'room-joined': (data: { roomCode: string; players: PlayerInfo[]; mode: GameMode }) => void;
   'room-full': (data: { roomCode: string }) => void;
   'player-joined': (data: { player: PlayerInfo }) => void;
   'player-left': (data: { playerId: string }) => void;
   'player-disconnected': (data: { playerId: string }) => void;
   'player-reconnected': (data: { playerId: string; gameState: GameState }) => void;
+  'your-player-id': (data: { playerId: string }) => void;
 
   // Game flow
   'game-starting': (data: { gameState: GameState }) => void;
