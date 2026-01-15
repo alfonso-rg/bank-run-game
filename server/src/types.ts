@@ -74,6 +74,12 @@ export interface RoundPayoff {
   automaton: number;
 }
 
+export interface DecisionTimes {
+  player1: number;  // ms desde inicio de ronda
+  player2: number;
+  automaton: number;
+}
+
 export interface RoundResult {
   round: number;
   decisions: {
@@ -83,6 +89,8 @@ export interface RoundResult {
   };
   payoffs: RoundPayoff;
   decisionOrder: PlayerId[];  // Orden en que decidieron
+  decisionTimes?: DecisionTimes;  // ms desde inicio de ronda
+  bankRun: boolean;  // true si al menos un paciente (player1 o player2) retiró
   paidWhen?: {
     player1: PaidWhen;
     player2: PaidWhen;
@@ -94,6 +102,7 @@ export interface RoundResult {
 export interface CurrentRound {
   roundNumber: number;
   decisions: Map<PlayerId, Decision | null>;
+  decisionTimestamps: Map<PlayerId, number>;  // Timestamp (Date.now()) de cada decisión
   decisionOrder: PlayerId[];       // Orden aleatorio (importante para secuencial)
   revealedDecisions: PlayerId[];   // Solo modo secuencial
   timerStartedAt: Date | null;
@@ -157,6 +166,8 @@ export interface GameResultDocument {
     };
     payoffs: RoundPayoff;
     decisionOrder: string[];
+    decisionTimes?: DecisionTimes;  // ms desde inicio de ronda
+    bankRun: boolean;  // true si al menos un paciente retiró
     paidWhen?: {
       player1: PaidWhen;
       player2: PaidWhen;

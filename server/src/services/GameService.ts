@@ -10,7 +10,8 @@ import {
   DEFAULT_GAME_CONFIG,
   PlayerInfo,
   PLAYER_IDS,
-  PaidWhen
+  PaidWhen,
+  DecisionTimes
 } from '../types';
 import { GameResult } from '../models/GameResult';
 import { logger } from '../config/logger';
@@ -52,6 +53,7 @@ export class GameService {
       currentRound: {
         roundNumber: 1,
         decisions: new Map(),
+        decisionTimestamps: new Map(),
         decisionOrder: [],
         revealedDecisions: [],
         timerStartedAt: null
@@ -106,6 +108,7 @@ export class GameService {
     game.currentRound = {
       roundNumber: game.currentRound.roundNumber,
       decisions: new Map(),
+      decisionTimestamps: new Map(),
       decisionOrder: shuffledOrder,
       revealedDecisions: [],
       timerStartedAt: new Date()
@@ -127,6 +130,7 @@ export class GameService {
     }
 
     game.currentRound.decisions.set(playerId, decision);
+    game.currentRound.decisionTimestamps.set(playerId, Date.now());
     logger.info(`${playerId} decided ${decision} in game ${gameId}`);
   }
 
@@ -276,11 +280,30 @@ export class GameService {
     const roundNumber = game.currentRound.roundNumber;
     const decisions = game.currentRound.decisions;
     const decisionOrder = game.currentRound.decisionOrder;
+    const decisionTimestamps = game.currentRound.decisionTimestamps;
+    const timerStartedAt = game.currentRound.timerStartedAt;
 
     // Extraer decisiones
     const d1 = decisions.get('player1')!;
     const d2 = decisions.get('player2')!;
     const dAutomaton = decisions.get('automaton')!;  // Siempre WITHDRAW
+
+    // Calcular tiempos de decisión relativos al inicio de ronda
+    const roundStartTime = timerStartedAt ? timerStartedAt.getTime() : Date.now();
+    const decisionTimes: DecisionTimes = {
+      player1: decisionTimestamps.get('player1')
+        ? decisionTimestamps.get('player1')! - roundStartTime
+        : 0,
+      player2: decisionTimestamps.get('player2')
+        ? decisionTimestamps.get('player2')! - roundStartTime
+        : 0,
+      automaton: decisionTimestamps.get('automaton')
+        ? decisionTimestamps.get('automaton')! - roundStartTime
+        : 0
+    };
+
+    // Determinar si hubo bank run (al menos un paciente retiró)
+    const bankRun = d1 === 'WITHDRAW' || d2 === 'WITHDRAW';
 
     // Crear Map sin nulls para pasar a funciones de cálculo
     const decisionsClean = new Map<PlayerId, Decision>([
@@ -303,7 +326,9 @@ export class GameService {
           automaton: dAutomaton
         },
         payoffs,
-        decisionOrder
+        decisionOrder,
+        decisionTimes,
+        bankRun
       };
     } else {
       // Modo secuencial
@@ -322,6 +347,8 @@ export class GameService {
         },
         payoffs,
         decisionOrder,
+        decisionTimes,
+        bankRun,
         paidWhen,
         seqTrace
       };
@@ -330,7 +357,7 @@ export class GameService {
     game.roundHistory.push(result);
     game.status = 'ROUND_RESULTS';
 
-    logger.info(`Round ${roundNumber} finalized. Payoffs: P1=${result.payoffs.player1}, P2=${result.payoffs.player2}, Automaton=${result.payoffs.automaton}`);
+    logger.info(`Round ${roundNumber} finalized. Payoffs: P1=${result.payoffs.player1}, P2=${result.payoffs.player2}, Automaton=${result.payoffs.automaton}. BankRun: ${bankRun}`);
 
     return result;
   }

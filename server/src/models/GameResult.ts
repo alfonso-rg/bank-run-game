@@ -37,6 +37,12 @@ const GameResultSchema = new Schema<IGameResultDocument>({
       automaton: { type: Number, required: true }
     },
     decisionOrder: [{ type: String, required: true }],
+    decisionTimes: {
+      player1: { type: Number },  // ms desde inicio de ronda
+      player2: { type: Number },
+      automaton: { type: Number }
+    },
+    bankRun: { type: Boolean, required: true },  // true si al menos un paciente retiró
     paidWhen: {
       player1: { type: String, enum: ['immediate', 'deferred'] },
       player2: { type: String, enum: ['immediate', 'deferred'] },

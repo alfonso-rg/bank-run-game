@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { connectDatabase } from './config/database';
 import { logger } from './config/logger';
 import { setupGameHandlers } from './socket/gameHandlers';
+import adminRoutes from './routes/admin';
 import path from 'path';
 import fs from 'fs';
 
@@ -55,6 +56,9 @@ app.get('/', (req, res) => {
     status: 'running'
   });
 });
+
+// Rutas de administración
+app.use('/api/admin', adminRoutes);
 
 // Setup Socket.io handlers
 setupGameHandlers(io);
