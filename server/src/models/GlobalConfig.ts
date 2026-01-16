@@ -76,16 +76,25 @@ export async function getGlobalConfig(): Promise<IGlobalConfig> {
 export async function updateGlobalConfig(
   updates: Partial<Omit<IGlobalConfig, 'updatedAt'>>
 ): Promise<IGlobalConfig> {
-  const config = await GlobalConfig.findOneAndUpdate(
-    {},
-    { ...updates, updatedAt: new Date() },
-    { new: true, upsert: true }
-  );
+  try {
+    const config = await GlobalConfig.findOneAndUpdate(
+      {},
+      { ...updates, updatedAt: new Date() },
+      { new: true, upsert: true, maxTimeMS: 5000 }
+    );
 
-  return {
-    opponentType: config.opponentType,
-    gameMode: config.gameMode,
-    totalRounds: config.totalRounds,
-    updatedAt: config.updatedAt
-  };
+    if (!config) {
+      throw new Error('Failed to update config');
+    }
+
+    return {
+      opponentType: config.opponentType,
+      gameMode: config.gameMode,
+      totalRounds: config.totalRounds,
+      updatedAt: config.updatedAt
+    };
+  } catch (error) {
+    console.error('Error updating GlobalConfig:', error);
+    throw error;
+  }
 }
