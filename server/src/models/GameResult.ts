@@ -24,6 +24,10 @@ const GameResultSchema = new Schema<IGameResultDocument>({
     default: Date.now,
     index: true
   },
+  chatEnabled: {
+    type: Boolean,
+    default: false
+  },
   rounds: [{
     round: { type: Number, required: true },
     decisions: {
@@ -48,7 +52,12 @@ const GameResultSchema = new Schema<IGameResultDocument>({
       player2: { type: String, enum: ['immediate', 'deferred'] },
       automaton: { type: String, enum: ['immediate', 'deferred'] }
     },
-    seqTrace: { type: String }
+    seqTrace: { type: String },
+    chatMessages: [{
+      playerId: { type: String, enum: ['player1', 'player2'], required: true },
+      message: { type: String, required: true, maxlength: 500 },
+      timestamp: { type: Number, required: true }  // ms desde inicio del chat
+    }]
   }],
   totalPayoffs: {
     player1: { type: Number, required: true },

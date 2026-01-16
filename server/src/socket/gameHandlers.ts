@@ -35,6 +35,11 @@ const schemas = {
   submitDecision: Joi.object({
     gameId: Joi.string().required(),
     decision: Joi.string().valid('KEEP', 'WITHDRAW').required()
+  }),
+
+  sendChatMessage: Joi.object({
+    gameId: Joi.string().required(),
+    message: Joi.string().min(1).max(500).required()
   })
 };
 
@@ -360,6 +365,84 @@ export function setupGameHandlers(io: Server): void {
       }
     });
 
+    // ====== SEND CHAT MESSAGE ======
+    socket.on('send-chat-message', async (data) => {
+      try {
+        const { gameId, message } = validate<{ gameId: string; message: string }>(
+          schemas.sendChatMessage,
+          data
+        );
+
+        const game = gameService.getGame(gameId);
+        if (!game) {
+          socket.emit('error', { code: 'GAME_NOT_FOUND', message: 'Game not found' });
+          return;
+        }
+
+        if (game.status !== 'ROUND_CHAT') {
+          socket.emit('error', { code: 'NOT_CHAT_PHASE', message: 'Not in chat phase' });
+          return;
+        }
+
+        // Determinar quien es este jugador
+        let playerId: 'player1' | 'player2' | null = null;
+        if (game.players.player1.socketId === socket.id) playerId = 'player1';
+        else if (game.players.player2.socketId === socket.id) playerId = 'player2';
+
+        if (!playerId) {
+          socket.emit('error', { code: 'UNAUTHORIZED', message: 'Not a player' });
+          return;
+        }
+
+        // Agregar mensaje
+        const chatMessage = gameService.addChatMessage(gameId, playerId, message);
+
+        // Broadcast a la sala
+        io.to(game.roomCode).emit('chat-message', {
+          playerId,
+          message: chatMessage.message,
+          timestamp: chatMessage.timestamp
+        });
+
+        // Si juega vs LLM y el humano envio mensaje, generar respuesta del LLM
+        if (playerId === 'player1' && game.players.player2.isLLM) {
+          // Delay para respuesta natural
+          setTimeout(async () => {
+            try {
+              const currentGame = gameService.getGame(gameId);
+              if (!currentGame || currentGame.status !== 'ROUND_CHAT') return;
+
+              const llmResponse = await llmService.generateChatResponse(
+                gameId,
+                currentGame,
+                currentGame.currentRound.chatMessages,
+                message
+              );
+
+              // Verificar que no sea [SILENT] y que tenga contenido
+              if (llmResponse && llmResponse.trim() !== '' && !llmResponse.includes('[SILENT]')) {
+                const llmMessage = gameService.addChatMessage(gameId, 'player2', llmResponse);
+                io.to(game.roomCode).emit('chat-message', {
+                  playerId: 'player2',
+                  message: llmMessage.message,
+                  timestamp: llmMessage.timestamp
+                });
+              }
+            } catch (error) {
+              logger.error('Error generating LLM chat response:', error);
+            }
+          }, 1000 + Math.random() * 2000);  // 1-3 segundos de delay
+        }
+
+      } catch (error) {
+        logger.error('Error sending chat message:', error);
+        socket.emit('error', {
+          code: 'CHAT_ERROR',
+          message: (error as Error).message
+        });
+      }
+    });
+
     // ====== DISCONNECT ======
     socket.on('disconnect', () => {
       logger.info(`Client disconnected: ${socket.id}`);
@@ -377,7 +460,128 @@ export function setupGameHandlers(io: Server): void {
 
 // ====== HELPER FUNCTIONS ======
 
+/**
+ * Inicia una ronda - verifica si debe haber chat primero
+ */
 async function startRound(io: Server, gameId: string): Promise<void> {
+  const game = gameService.getGame(gameId);
+  if (!game) return;
+
+  // Verificar si debe haber chat en esta ronda
+  if (gameService.shouldHaveChat(gameId)) {
+    await startChatPhase(io, gameId);
+  } else {
+    await startDecisionPhase(io, gameId);
+  }
+}
+
+/**
+ * Inicia la fase de chat pre-decision
+ */
+async function startChatPhase(io: Server, gameId: string): Promise<void> {
+  const game = gameService.getGame(gameId);
+  if (!game) return;
+
+  gameService.startChatPhase(gameId);
+
+  const roundNumber = game.currentRound.roundNumber;
+  const duration = game.config.chatDuration;
+
+  io.to(game.roomCode).emit('chat-starting', { roundNumber, duration });
+
+  // Iniciar timer de chat
+  startChatTimer(io, gameId);
+
+  // Si player2 es LLM, posiblemente enviar mensaje inicial
+  if (game.players.player2.isLLM) {
+    setTimeout(async () => {
+      try {
+        const currentGame = gameService.getGame(gameId);
+        if (!currentGame || currentGame.status !== 'ROUND_CHAT') return;
+
+        const message = await llmService.generateProactiveChatMessage(
+          gameId,
+          currentGame,
+          currentGame.currentRound.chatMessages
+        );
+
+        if (message && message.trim() !== '' && !message.includes('[SILENT]')) {
+          const chatMsg = gameService.addChatMessage(gameId, 'player2', message);
+          io.to(game.roomCode).emit('chat-message', {
+            playerId: 'player2',
+            message: chatMsg.message,
+            timestamp: chatMsg.timestamp
+          });
+        }
+      } catch (error) {
+        logger.error('Error generating proactive LLM chat message:', error);
+      }
+    }, 2000);  // Esperar 2 segundos antes de que el LLM hable
+  }
+
+  logger.info(`Chat phase started for round ${roundNumber} in game ${gameId} (${duration}s)`);
+}
+
+/**
+ * Inicia el timer de la fase de chat
+ */
+function startChatTimer(io: Server, gameId: string): void {
+  const game = gameService.getGame(gameId);
+  if (!game) return;
+
+  const startTime = Date.now();
+  const durationMs = game.config.chatDuration * 1000;
+
+  const interval = setInterval(() => {
+    const currentGame = gameService.getGame(gameId);
+    if (!currentGame) {
+      clearInterval(interval);
+      return;
+    }
+
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, durationMs - elapsed);
+
+    io.to(game.roomCode).emit('timer-update', {
+      startTime,
+      durationMs,
+      remainingMs: remaining,
+      phase: 'chat'
+    });
+
+    if (remaining === 0) {
+      clearInterval(interval);
+      handleChatTimeout(io, gameId);
+    }
+  }, 1000);
+
+  game.currentRound.chatTimerInterval = interval;
+}
+
+/**
+ * Maneja el fin del timer de chat
+ */
+async function handleChatTimeout(io: Server, gameId: string): Promise<void> {
+  const game = gameService.getGame(gameId);
+  if (!game) return;
+
+  logger.info(`Chat phase ended for game ${gameId}`);
+
+  io.to(game.roomCode).emit('chat-ending', {
+    roundNumber: game.currentRound.roundNumber,
+    totalMessages: game.currentRound.chatMessages.length
+  });
+
+  gameService.endChatPhase(gameId);
+
+  // Transicionar a fase de decision
+  await startDecisionPhase(io, gameId);
+}
+
+/**
+ * Inicia la fase de decision (logica original de startRound)
+ */
+async function startDecisionPhase(io: Server, gameId: string): Promise<void> {
   const game = gameService.getGame(gameId);
   if (!game) return;
 
@@ -489,7 +693,8 @@ function startTimer(io: Server, gameId: string): void {
     io.to(game.roomCode).emit('timer-update', {
       startTime,
       durationMs,
-      remainingMs: remaining
+      remainingMs: remaining,
+      phase: 'decision'
     });
 
     if (remaining === 0) {

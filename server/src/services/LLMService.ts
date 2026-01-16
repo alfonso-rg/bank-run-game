@@ -1,6 +1,6 @@
 import Bottleneck from 'bottleneck';
 import OpenAI from 'openai';
-import { Decision, GameState, PlayerProfile } from '../types';
+import { Decision, GameState, PlayerProfile, ChatMessage } from '../types';
 import { logger } from '../config/logger';
 
 const SYSTEM_PROMPT = `You are a participant in an experimental economics study run on Prolific.
@@ -47,6 +47,25 @@ const ROUND_PROMPT_SEQUENTIAL = (
 - The other patient might have already moved, or might move after you.
 - Reply with ONLY one word on the first line: KEEP or WITHDRAW.`;
 };
+
+const CHAT_SYSTEM_PROMPT = `You are in a pre-decision chat phase where you can communicate with the other patient depositor (Depositor 1) before making your decision.
+
+Communication Guidelines:
+1. Be conversational and natural - respond like a real person would
+2. Keep messages short (1-3 sentences max)
+3. You may discuss strategy, but remember your persona
+4. Don't explicitly reveal that you are an AI
+5. Consider your persona's characteristics when chatting
+
+You can:
+- Suggest cooperation ("Maybe we should both KEEP?")
+- Express concerns ("I'm worried about the automaton...")
+- Ask questions ("What are you thinking?")
+- Stay neutral or non-committal
+- Respond to what the other player says
+
+Remember: What you say here does NOT bind your actual decision. You may or may not follow through on anything discussed.
+Respond with ONLY your chat message, nothing else.`;
 
 export class LLMService {
   private limiter: Bottleneck;
@@ -201,6 +220,131 @@ Stay in character across all rounds.`;
 
     history.push({ role: 'user', content: outcomeText });
     this.conversationHistory.set(gameId, history);
+  }
+
+  /**
+   * Genera una respuesta de chat del LLM
+   */
+  async generateChatResponse(
+    gameId: string,
+    gameState: GameState,
+    chatHistory: ChatMessage[],
+    humanMessage?: string
+  ): Promise<string> {
+    return this.limiter.schedule(async () => {
+      const history = this.conversationHistory.get(gameId) || [];
+
+      // Construir contexto del chat
+      const chatContext = this.buildChatContext(gameState, chatHistory, humanMessage);
+
+      try {
+        const response = await this.openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            ...history,
+            { role: 'system', content: CHAT_SYSTEM_PROMPT },
+            { role: 'user', content: chatContext }
+          ],
+          temperature: 0.7,  // Mayor variabilidad para chat natural
+          max_tokens: 150
+        });
+
+        const message = response.choices[0].message.content || '';
+
+        // Guardar en el historial para contexto de decisión
+        const conversationHistory = this.conversationHistory.get(gameId) || [];
+        conversationHistory.push({ role: 'user', content: `[CHAT] Other player: ${humanMessage || '(started chat)'}` });
+        conversationHistory.push({ role: 'assistant', content: `[CHAT] ${message}` });
+        this.conversationHistory.set(gameId, conversationHistory);
+
+        logger.info(`LLM chat response for game ${gameId}: "${message.substring(0, 50)}..."`);
+        return message;
+
+      } catch (error) {
+        logger.error(`LLM chat response failed for game ${gameId}:`, error);
+        return '';  // Silenciosamente fallar, el juego continúa
+      }
+    });
+  }
+
+  /**
+   * Genera un mensaje proactivo de chat (para iniciar conversación)
+   */
+  async generateProactiveChatMessage(
+    gameId: string,
+    gameState: GameState,
+    chatHistory: ChatMessage[]
+  ): Promise<string | null> {
+    // Verificar si el LLM debería enviar un mensaje
+    if (!this.shouldLLMRespond(chatHistory, gameState)) {
+      return null;
+    }
+
+    return this.generateChatResponse(gameId, gameState, chatHistory);
+  }
+
+  /**
+   * Construye el contexto para el prompt de chat
+   */
+  private buildChatContext(
+    gameState: GameState,
+    chatHistory: ChatMessage[],
+    humanMessage?: string
+  ): string {
+    const roundNumber = gameState.currentRound.roundNumber;
+    const lastRoundSummary = this.getLastRoundSummary(gameState);
+
+    // Obtener perfil del LLM
+    const profile = gameState.players.player2.profile;
+    const trustLevel = profile?.institutional_trust_0_10 ?? 5;
+    const education = profile?.education ?? 'unknown';
+
+    let context = `Round ${roundNumber} pre-decision chat phase.\n`;
+    context += `Previous round: ${lastRoundSummary}\n\n`;
+
+    context += `Your persona:\n`;
+    context += `- Trust level in institutions: ${trustLevel}/10\n`;
+    context += `- Education: ${education}\n\n`;
+
+    if (chatHistory.length > 0) {
+      context += 'Chat so far:\n';
+      chatHistory.forEach(msg => {
+        const sender = msg.playerId === 'player1' ? 'Other player' : 'You';
+        context += `${sender}: ${msg.message}\n`;
+      });
+      context += '\n';
+    }
+
+    if (humanMessage) {
+      context += `The other player just said: "${humanMessage}"\n`;
+      context += 'Respond naturally and briefly (max 2-3 sentences). Consider your trust level when discussing cooperation.';
+    } else {
+      context += 'You may send a message to discuss strategy with the other player, or stay silent.\n';
+      context += 'If you want to say something, respond with your message. If you prefer to stay silent, respond with just: [SILENT]';
+    }
+
+    return context;
+  }
+
+  /**
+   * Determina si el LLM debería responder en el chat
+   */
+  private shouldLLMRespond(chatHistory: ChatMessage[], gameState: GameState): boolean {
+    // Limitar mensajes del LLM para no spamear
+    const llmMessageCount = chatHistory.filter(m => m.playerId === 'player2').length;
+    if (llmMessageCount >= 3) return false;
+
+    // Siempre responder a un mensaje del humano
+    const lastMessage = chatHistory[chatHistory.length - 1];
+    if (lastMessage && lastMessage.playerId === 'player1') return true;
+
+    // Proactivamente enviar mensaje con cierta probabilidad
+    if (chatHistory.length === 0) {
+      // 60% de probabilidad de iniciar conversación
+      return Math.random() < 0.6;
+    }
+
+    return false;
   }
 
   /**

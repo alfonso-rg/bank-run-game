@@ -11,6 +11,7 @@ export interface ClientToServerEvents {
   'submit-decision': (data: { gameId: string; decision: Decision }) => void;
   'ready-next-round': (data: { gameId: string }) => void;
   'request-reconnect': (data: { gameId: string; playerId: string }) => void;
+  'send-chat-message': (data: { gameId: string; message: string }) => void;
 }
 
 // Eventos del servidor → cliente
@@ -28,8 +29,13 @@ export interface ServerToClientEvents {
   // Game flow
   'game-starting': (data: { gameState: GameState }) => void;
   'round-starting': (data: { roundNumber: number; decisionOrder?: string[] }) => void;
-  'timer-update': (data: { startTime: number; durationMs: number; remainingMs: number }) => void;
+  'timer-update': (data: { startTime: number; durationMs: number; remainingMs: number; phase?: 'decision' | 'chat' }) => void;
   'decision-received': (data: { playerId: string }) => void;
+
+  // Chat mode specific
+  'chat-starting': (data: { roundNumber: number; duration: number }) => void;
+  'chat-message': (data: { playerId: string; message: string; timestamp: number }) => void;
+  'chat-ending': (data: { roundNumber: number; totalMessages: number }) => void;
 
   // Sequential mode specific
   'next-player-turn': (data: { playerId: string; position: number; priorActions: string[] }) => void;

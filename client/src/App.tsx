@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { HomePage } from './components/HomePage';
 import { WaitingRoom } from './components/room/WaitingRoom';
 import { GameBoard } from './components/game/GameBoard';
+import { ChatPanel } from './components/game/ChatPanel';
 import { RoundResults } from './components/results/RoundResults';
 import { AdminLogin } from './components/admin/AdminLogin';
 import { AdminPanel } from './components/admin/AdminPanel';
@@ -59,6 +60,11 @@ function GameView() {
           isCreator={isCreator}
         />
       );
+    }
+
+    // Fase de chat pre-decision
+    if (gameState && gameState.status === 'ROUND_CHAT') {
+      return <ChatPanel />;
     }
 
     // Juego en curso

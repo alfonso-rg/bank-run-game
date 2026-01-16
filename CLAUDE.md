@@ -106,8 +106,9 @@ bank-run-game/
 
 ### Estados del Juego
 ```
-LOBBY → STARTING → ROUND_DECISION → [ROUND_REVEALING] → ROUND_RESULTS → ... → GAME_OVER
+LOBBY → STARTING → [ROUND_CHAT] → ROUND_DECISION → [ROUND_REVEALING] → ROUND_RESULTS → ... → GAME_OVER
 ```
+- **ROUND_CHAT:** Fase opcional de chat pre-decision (si chatEnabled=true)
 
 ## Modelo de Datos (MongoDB)
 
@@ -117,6 +118,7 @@ LOBBY → STARTING → ROUND_DECISION → [ROUND_REVEALING] → ROUND_RESULTS �
   gameId: string,
   roomCode: string,          // 6 chars, ej: "ABC123"
   mode: 'sequential' | 'simultaneous',
+  chatEnabled: boolean,      // Si el chat estaba habilitado
   timestamp: Date,
   rounds: [{
     round: number,
@@ -126,7 +128,12 @@ LOBBY → STARTING → ROUND_DECISION → [ROUND_REVEALING] → ROUND_RESULTS �
     payoffs: { player1, player2, automaton: number },
     decisionOrder: string[],
     paidWhen?: { ... },      // Solo secuencial
-    seqTrace?: string        // Solo secuencial
+    seqTrace?: string,       // Solo secuencial
+    chatMessages?: [{        // Mensajes de chat de la ronda (si chat habilitado)
+      playerId: 'player1' | 'player2',
+      message: string,
+      timestamp: number      // ms desde inicio del chat
+    }]
   }],
   totalPayoffs: { player1, player2, automaton: number },
   playerTypes: ['human', 'human' | 'llm'],
@@ -145,10 +152,15 @@ LOBBY → STARTING → ROUND_DECISION → [ROUND_REVEALING] → ROUND_RESULTS �
 - `start-game`: Iniciar juego
 - `submit-decision`: Enviar decision
 - `ready-next-round`: Siguiente ronda
+- `send-chat-message`: Enviar mensaje de chat
 
 ### Servidor → Cliente
 - `room-created`, `room-joined`, `player-joined`
 - `game-starting`, `round-starting`
+- `chat-starting`: Inicio de fase de chat (con duracion)
+- `chat-message`: Mensaje de chat recibido
+- `chat-ending`: Fin de fase de chat
+- `timer-update`: Actualizacion de timer (decision o chat)
 - `decision-revealed` (secuencial)
 - `round-complete`, `game-over`
 - `error`
@@ -185,6 +197,9 @@ El admin puede configurar el modo de juego que veran todos los jugadores:
   opponentType: 'ai' | 'human',     // IA o Multijugador
   gameMode: 'sequential' | 'simultaneous',
   totalRounds: number,              // 1-20
+  chatEnabled: boolean,             // Habilitar chat pre-decision
+  chatDuration: number,             // 5-60 segundos
+  chatFrequency: 'once' | 'every-round',
   updatedAt: Date
 }
 ```
@@ -192,8 +207,39 @@ El admin puede configurar el modo de juego que veran todos los jugadores:
 - **opponentType:** Define si los jugadores juegan contra IA o contra otro humano
 - **gameMode:** Define si las decisiones son simultaneas o secuenciales
 - **totalRounds:** Numero de rondas por partida
+- **chatEnabled:** Activa/desactiva la fase de chat pre-decision
+- **chatDuration:** Duracion del chat en segundos (5-60)
+- **chatFrequency:** 'once' solo antes de ronda 1, 'every-round' antes de cada ronda
 
 Los jugadores ven directamente esta configuracion en HomePage y no pueden cambiarla.
+
+## Modo Chat Pre-Decision
+
+Funcionalidad opcional que permite a los jugadores pacientes (player1 y player2) comunicarse antes de tomar su decision.
+
+### Flujo con Chat
+```
+STARTING → ROUND_CHAT (N segundos) → ROUND_DECISION → ROUND_RESULTS → ...
+```
+
+### Caracteristicas
+- **Combinable:** El chat funciona tanto con modo simultaneo como secuencial
+- **Configurable:** El admin controla duracion y frecuencia
+- **Persistente:** Los mensajes se guardan en GameResult para analisis
+- **LLM activo:** Cuando player2 es IA, participa activamente en el chat
+
+### Comportamiento del LLM en Chat
+- Puede iniciar conversacion (60% probabilidad, delay 2s)
+- Responde a mensajes del humano (delay 1-3s)
+- Maximo 3 mensajes por fase de chat
+- Recibe contexto: historial, ronda actual, resultado anterior
+
+### Componentes Involucrados
+- `ChatPanel.tsx`: UI del chat con mensajes, input y timer
+- `gameStore.ts`: Estado del chat (messages, phase, timeRemaining)
+- `useSocket.ts`: Handlers para eventos de chat
+- `GameService.ts`: Logica de chat (start, add, end)
+- `LLMService.ts`: Generacion de respuestas de chat
 
 ## Variables de Entorno
 

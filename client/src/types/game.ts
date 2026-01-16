@@ -8,10 +8,19 @@ export type PaidWhen = 'immediate' | 'deferred';
 export type GameStatus =
   | 'LOBBY'
   | 'STARTING'
+  | 'ROUND_CHAT'
   | 'ROUND_DECISION'
   | 'ROUND_REVEALING'
   | 'ROUND_RESULTS'
   | 'GAME_OVER';
+
+export type ChatFrequency = 'once' | 'every-round';
+
+export interface ChatMessage {
+  playerId: 'player1' | 'player2';
+  message: string;
+  timestamp: number;
+}
 
 export interface Payoffs {
   success: number;
@@ -45,6 +54,9 @@ export interface GameConfig {
   totalRounds: number;
   decisionTimeoutMs: number;
   mode: GameMode;
+  chatEnabled: boolean;
+  chatDuration: number;
+  chatFrequency: ChatFrequency;
 }
 
 export interface RoundPayoff {
@@ -68,6 +80,7 @@ export interface RoundResult {
     automaton: PaidWhen;
   };
   seqTrace?: string;
+  chatMessages?: ChatMessage[];
 }
 
 export interface CurrentRound {
@@ -76,6 +89,8 @@ export interface CurrentRound {
   decisionOrder: PlayerId[];
   revealedDecisions: Decision[];
   timerStartedAt: Date | null;
+  chatMessages: ChatMessage[];
+  chatStartedAt: Date | null;
 }
 
 export interface GameState {

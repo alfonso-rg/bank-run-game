@@ -258,7 +258,7 @@ router.get('/config', adminAuth, async (req: Request, res: Response) => {
  */
 router.put('/config', adminAuth, async (req: Request, res: Response) => {
   try {
-    const { opponentType, gameMode, totalRounds } = req.body;
+    const { opponentType, gameMode, totalRounds, chatEnabled, chatDuration, chatFrequency } = req.body;
 
     // Validar valores
     if (opponentType && !['ai', 'human'].includes(opponentType)) {
@@ -276,10 +276,29 @@ router.put('/config', adminAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    // Validar campos de chat
+    if (chatEnabled !== undefined && typeof chatEnabled !== 'boolean') {
+      res.status(400).json({ error: 'Invalid chatEnabled. Must be boolean' });
+      return;
+    }
+
+    if (chatDuration !== undefined && (chatDuration < 0 || chatDuration > 60)) {
+      res.status(400).json({ error: 'Invalid chatDuration. Must be between 0 and 60 seconds' });
+      return;
+    }
+
+    if (chatFrequency && !['once', 'every-round'].includes(chatFrequency)) {
+      res.status(400).json({ error: 'Invalid chatFrequency. Must be "once" or "every-round"' });
+      return;
+    }
+
     const updates: Record<string, unknown> = {};
     if (opponentType) updates.opponentType = opponentType;
     if (gameMode) updates.gameMode = gameMode;
     if (totalRounds !== undefined) updates.totalRounds = totalRounds;
+    if (chatEnabled !== undefined) updates.chatEnabled = chatEnabled;
+    if (chatDuration !== undefined) updates.chatDuration = chatDuration;
+    if (chatFrequency) updates.chatFrequency = chatFrequency;
 
     const config = await updateGlobalConfig(updates);
 

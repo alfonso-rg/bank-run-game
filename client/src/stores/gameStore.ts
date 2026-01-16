@@ -1,7 +1,7 @@
 // stores/gameStore.ts - Zustand store para el estado global del juego
 
 import { create } from 'zustand';
-import type { GameState, RoundResult, PlayerId, GameMode } from '../types/game';
+import type { GameState, RoundResult, PlayerId, GameMode, ChatMessage } from '../types/game';
 
 interface GameStore {
   // Estado del juego
@@ -23,6 +23,11 @@ interface GameStore {
   isMyTurnInSequential: boolean;
   sequentialPriorActions: string[];
 
+  // Estado de chat
+  chatMessages: ChatMessage[];
+  isChatPhase: boolean;
+  chatTimeRemaining: number;
+
   // Acciones
   setGameState: (state: GameState) => void;
   setRoomCode: (code: string) => void;
@@ -37,6 +42,12 @@ interface GameStore {
   // Actualizaciones de ronda
   updateRoundResult: (result: RoundResult) => void;
   updateGameStatus: (status: GameState['status']) => void;
+
+  // Acciones de chat
+  addChatMessage: (message: ChatMessage) => void;
+  setChatPhase: (isChat: boolean) => void;
+  setChatTimeRemaining: (time: number) => void;
+  clearChatMessages: () => void;
 
   // Reset
   reset: () => void;
@@ -54,6 +65,9 @@ export const useGameStore = create<GameStore>((set) => ({
   error: null,
   isMyTurnInSequential: false,
   sequentialPriorActions: [],
+  chatMessages: [],
+  isChatPhase: false,
+  chatTimeRemaining: 0,
 
   setGameState: (state) => set({ gameState: state }),
   setRoomCode: (code) => set({ roomCode: code }),
@@ -94,6 +108,17 @@ export const useGameStore = create<GameStore>((set) => ({
     };
   }),
 
+  // Acciones de chat
+  addChatMessage: (message) => set((state) => ({
+    chatMessages: [...state.chatMessages, message]
+  })),
+
+  setChatPhase: (isChat) => set({ isChatPhase: isChat }),
+
+  setChatTimeRemaining: (time) => set({ chatTimeRemaining: time }),
+
+  clearChatMessages: () => set({ chatMessages: [] }),
+
   reset: () => set({
     gameState: null,
     roomCode: null,
@@ -106,5 +131,8 @@ export const useGameStore = create<GameStore>((set) => ({
     error: null,
     isMyTurnInSequential: false,
     sequentialPriorActions: [],
+    chatMessages: [],
+    isChatPhase: false,
+    chatTimeRemaining: 0,
   }),
 }));

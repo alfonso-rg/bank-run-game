@@ -8,10 +8,19 @@ export type PaidWhen = 'immediate' | 'deferred';
 export type GameStatus =
   | 'LOBBY'            // Sala de espera
   | 'STARTING'         // Iniciando juego
+  | 'ROUND_CHAT'       // Fase de chat pre-decision
   | 'ROUND_DECISION'   // Jugadores decidiendo
   | 'ROUND_REVEALING'  // Solo secuencial: revelando decisiones
   | 'ROUND_RESULTS'    // Mostrando resultados de ronda
   | 'GAME_OVER';       // Juego terminado
+
+export type ChatFrequency = 'once' | 'every-round';
+
+export interface ChatMessage {
+  playerId: 'player1' | 'player2';
+  message: string;
+  timestamp: number;  // ms desde inicio de la fase de chat
+}
 
 export interface Payoffs {
   success: number;    // 70 ECUs cuando ambos pacientes KEEP
@@ -52,13 +61,19 @@ export interface GameConfig {
   totalRounds: number;
   decisionTimeoutMs: number;
   mode: GameMode;
+  chatEnabled: boolean;
+  chatDuration: number;  // segundos (0-60)
+  chatFrequency: ChatFrequency;
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
   payoffs: DEFAULT_PAYOFFS,
   totalRounds: 5,
   decisionTimeoutMs: 30000,  // 30 segundos
-  mode: 'simultaneous'
+  mode: 'simultaneous',
+  chatEnabled: false,
+  chatDuration: 30,  // 30 segundos por defecto
+  chatFrequency: 'every-round'
 };
 
 export interface RoundDecision {
@@ -97,6 +112,7 @@ export interface RoundResult {
     automaton: PaidWhen;
   };
   seqTrace?: string;  // Traza del flujo secuencial
+  chatMessages?: ChatMessage[];  // Mensajes del chat pre-decision
 }
 
 export interface CurrentRound {
@@ -107,6 +123,10 @@ export interface CurrentRound {
   revealedDecisions: PlayerId[];   // Solo modo secuencial
   timerStartedAt: Date | null;
   timerInterval?: NodeJS.Timeout;  // Para limpiar el interval
+  // Chat-related fields
+  chatMessages: ChatMessage[];
+  chatStartedAt: Date | null;
+  chatTimerInterval?: NodeJS.Timeout;
 }
 
 export interface GameState {
@@ -156,6 +176,7 @@ export interface GameResultDocument {
   roomCode: string;
   mode: GameMode;
   timestamp: Date;
+  chatEnabled?: boolean;  // Si el juego tuvo chat habilitado
 
   rounds: {
     round: number;
@@ -174,6 +195,7 @@ export interface GameResultDocument {
       automaton: PaidWhen;
     };
     seqTrace?: string;
+    chatMessages?: ChatMessage[];  // Mensajes del chat pre-decision
   }[];
 
   totalPayoffs: RoundPayoff;
@@ -205,6 +227,7 @@ export interface SocketEvents {
   'submit-decision': (data: { gameId: string; decision: Decision }) => void;
   'ready-next-round': (data: { gameId: string }) => void;
   'request-reconnect': (data: { gameId: string; playerId: string }) => void;
+  'send-chat-message': (data: { gameId: string; message: string }) => void;  // Chat
 
   // Servidor → Cliente
   'room-created': (data: { roomCode: string; playerId: string }) => void;
@@ -217,8 +240,13 @@ export interface SocketEvents {
 
   'game-starting': (data: { gameState: GameState }) => void;
   'round-starting': (data: { roundNumber: number; decisionOrder?: string[] }) => void;
-  'timer-update': (data: { startTime: number; durationMs: number; remainingMs: number }) => void;
+  'timer-update': (data: { startTime: number; durationMs: number; remainingMs: number; phase?: 'decision' | 'chat' }) => void;
   'decision-received': (data: { playerId: string }) => void;
+
+  // Chat mode specific
+  'chat-starting': (data: { roundNumber: number; duration: number }) => void;
+  'chat-message': (data: { playerId: string; message: string; timestamp: number }) => void;
+  'chat-ending': (data: { roundNumber: number; totalMessages: number }) => void;
 
   // Sequential mode specific
   'next-player-turn': (data: { position: number; priorActions: string[] }) => void;
@@ -237,6 +265,7 @@ export const PLAYER_IDS: PlayerId[] = ['player1', 'player2', 'automaton'];
 export const GAME_STATUSES: GameStatus[] = [
   'LOBBY',
   'STARTING',
+  'ROUND_CHAT',
   'ROUND_DECISION',
   'ROUND_REVEALING',
   'ROUND_RESULTS',

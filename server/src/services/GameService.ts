@@ -11,7 +11,8 @@ import {
   PlayerInfo,
   PLAYER_IDS,
   PaidWhen,
-  DecisionTimes
+  DecisionTimes,
+  ChatMessage
 } from '../types';
 import { GameResult } from '../models/GameResult';
 import { logger } from '../config/logger';
@@ -56,7 +57,9 @@ export class GameService {
         decisionTimestamps: new Map(),
         decisionOrder: [],
         revealedDecisions: [],
-        timerStartedAt: null
+        timerStartedAt: null,
+        chatMessages: [],
+        chatStartedAt: null
       },
       roundHistory: [],
       createdAt: new Date(),
@@ -96,7 +99,7 @@ export class GameService {
   }
 
   /**
-   * Inicia una nueva ronda
+   * Inicia una nueva ronda (fase de decision)
    */
   startRound(gameId: string): void {
     const game = this.games.get(gameId);
@@ -105,18 +108,100 @@ export class GameService {
     // Shuffle del orden de decisión (crítico para modo secuencial)
     const shuffledOrder = this.shuffleArray([...PLAYER_IDS]);
 
+    // Preservar mensajes de chat si venimos de fase de chat
+    const existingChatMessages = game.currentRound.chatMessages || [];
+
     game.currentRound = {
       roundNumber: game.currentRound.roundNumber,
       decisions: new Map(),
       decisionTimestamps: new Map(),
       decisionOrder: shuffledOrder,
       revealedDecisions: [],
-      timerStartedAt: new Date()
+      timerStartedAt: new Date(),
+      chatMessages: existingChatMessages,
+      chatStartedAt: game.currentRound.chatStartedAt
     };
 
     game.status = 'ROUND_DECISION';
 
     logger.info(`Round ${game.currentRound.roundNumber} started in game ${gameId}. Order: ${shuffledOrder.join(' → ')}`);
+  }
+
+  /**
+   * Inicia la fase de chat para una ronda
+   */
+  startChatPhase(gameId: string): void {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error('Game not found');
+
+    game.status = 'ROUND_CHAT';
+    game.currentRound.chatMessages = [];
+    game.currentRound.chatStartedAt = new Date();
+
+    logger.info(`Chat phase started for round ${game.currentRound.roundNumber} in game ${gameId}`);
+  }
+
+  /**
+   * Agrega un mensaje al chat
+   */
+  addChatMessage(gameId: string, playerId: 'player1' | 'player2', message: string): ChatMessage {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error('Game not found');
+    if (game.status !== 'ROUND_CHAT') throw new Error('Not in chat phase');
+
+    const timestamp = game.currentRound.chatStartedAt
+      ? Date.now() - game.currentRound.chatStartedAt.getTime()
+      : 0;
+
+    const chatMessage: ChatMessage = {
+      playerId,
+      message: message.substring(0, 500),  // Limitar longitud
+      timestamp
+    };
+
+    game.currentRound.chatMessages.push(chatMessage);
+    logger.debug(`Chat message from ${playerId} in game ${gameId}: "${message.substring(0, 50)}..."`);
+
+    return chatMessage;
+  }
+
+  /**
+   * Finaliza la fase de chat
+   */
+  endChatPhase(gameId: string): void {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error('Game not found');
+
+    if (game.currentRound.chatTimerInterval) {
+      clearInterval(game.currentRound.chatTimerInterval);
+      game.currentRound.chatTimerInterval = undefined;
+    }
+
+    logger.info(`Chat phase ended for round ${game.currentRound.roundNumber} in game ${gameId}. Total messages: ${game.currentRound.chatMessages.length}`);
+  }
+
+  /**
+   * Verifica si debe haber chat en esta ronda
+   */
+  shouldHaveChat(gameId: string): boolean {
+    const game = this.games.get(gameId);
+    if (!game || !game.config.chatEnabled) return false;
+    if (game.config.chatDuration === 0) return false;
+
+    if (game.config.chatFrequency === 'once') {
+      return game.currentRound.roundNumber === 1;
+    }
+
+    return true;  // 'every-round'
+  }
+
+  /**
+   * Obtiene los mensajes de chat de la ronda actual
+   */
+  getChatMessages(gameId: string): ChatMessage[] {
+    const game = this.games.get(gameId);
+    if (!game) return [];
+    return game.currentRound.chatMessages || [];
   }
 
   /**
@@ -312,6 +397,11 @@ export class GameService {
       ['automaton', dAutomaton]
     ]);
 
+    // Obtener mensajes de chat si los hay
+    const chatMessages = game.currentRound.chatMessages.length > 0
+      ? [...game.currentRound.chatMessages]
+      : undefined;
+
     // Calcular payoffs según el modo
     let result: RoundResult;
 
@@ -328,7 +418,8 @@ export class GameService {
         payoffs,
         decisionOrder,
         decisionTimes,
-        bankRun
+        bankRun,
+        chatMessages
       };
     } else {
       // Modo secuencial
@@ -350,7 +441,8 @@ export class GameService {
         decisionTimes,
         bankRun,
         paidWhen,
-        seqTrace
+        seqTrace,
+        chatMessages
       };
     }
 
@@ -377,8 +469,10 @@ export class GameService {
       return false;
     }
 
-    // Siguiente ronda
+    // Siguiente ronda - resetear estado de chat
     game.currentRound.roundNumber++;
+    game.currentRound.chatMessages = [];
+    game.currentRound.chatStartedAt = null;
     game.status = 'ROUND_DECISION';
     logger.info(`Game ${gameId} advancing to round ${game.currentRound.roundNumber}`);
     return true;
@@ -413,6 +507,7 @@ export class GameService {
         roomCode: game.roomCode,
         mode: game.mode,
         timestamp: game.createdAt,
+        chatEnabled: game.config.chatEnabled,
         rounds: game.roundHistory,
         totalPayoffs,
         playerTypes,
@@ -447,9 +542,12 @@ export class GameService {
     this.playerGameMap.delete(game.players.player1.socketId);
     this.playerGameMap.delete(game.players.player2.socketId);
 
-    // Limpiar timer si existe
+    // Limpiar timers si existen
     if (game.currentRound.timerInterval) {
       clearInterval(game.currentRound.timerInterval);
+    }
+    if (game.currentRound.chatTimerInterval) {
+      clearInterval(game.currentRound.chatTimerInterval);
     }
 
     this.games.delete(gameId);

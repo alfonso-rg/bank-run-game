@@ -106,7 +106,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       const updated = await updateGlobalConfig({
         opponentType: globalConfig.opponentType,
         gameMode: globalConfig.gameMode,
-        totalRounds: globalConfig.totalRounds
+        totalRounds: globalConfig.totalRounds,
+        chatEnabled: globalConfig.chatEnabled,
+        chatDuration: globalConfig.chatDuration,
+        chatFrequency: globalConfig.chatFrequency
       });
       setGlobalConfig(updated);
       alert('Configuracion guardada correctamente');
@@ -211,65 +214,144 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
           {configLoading ? (
             <div className="text-center text-gray-500 py-4">Cargando configuracion...</div>
           ) : globalConfig ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo de oponente
-                </label>
-                <select
-                  value={globalConfig.opponentType}
-                  onChange={(e) =>
-                    setGlobalConfig({
-                      ...globalConfig,
-                      opponentType: e.target.value as 'ai' | 'human'
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                >
-                  <option value="ai">Inteligencia Artificial</option>
-                  <option value="human">Multijugador (Humano)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Modo de juego
-                </label>
-                <select
-                  value={globalConfig.gameMode}
-                  onChange={(e) =>
-                    setGlobalConfig({
-                      ...globalConfig,
-                      gameMode: e.target.value as 'sequential' | 'simultaneous'
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                >
-                  <option value="simultaneous">Simultaneo</option>
-                  <option value="sequential">Secuencial</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Numero de rondas
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    value={globalConfig.totalRounds}
+            <div className="space-y-6">
+              {/* Primera fila: Oponente, Modo, Rondas */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo de oponente
+                  </label>
+                  <select
+                    value={globalConfig.opponentType}
                     onChange={(e) =>
                       setGlobalConfig({
                         ...globalConfig,
-                        totalRounds: Number(e.target.value)
+                        opponentType: e.target.value as 'ai' | 'human'
                       })
                     }
-                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <span className="text-xl font-bold text-primary w-8 text-center">
-                    {globalConfig.totalRounds}
-                  </span>
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="ai">Inteligencia Artificial</option>
+                    <option value="human">Multijugador (Humano)</option>
+                  </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Modo de juego
+                  </label>
+                  <select
+                    value={globalConfig.gameMode}
+                    onChange={(e) =>
+                      setGlobalConfig({
+                        ...globalConfig,
+                        gameMode: e.target.value as 'sequential' | 'simultaneous'
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="simultaneous">Simultaneo</option>
+                    <option value="sequential">Secuencial</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Numero de rondas
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="1"
+                      max="20"
+                      value={globalConfig.totalRounds}
+                      onChange={(e) =>
+                        setGlobalConfig({
+                          ...globalConfig,
+                          totalRounds: Number(e.target.value)
+                        })
+                      }
+                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <span className="text-xl font-bold text-primary w-8 text-center">
+                      {globalConfig.totalRounds}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Segunda fila: Configuracion de Chat */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                  Configuracion del Chat Pre-Decision
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={globalConfig.chatEnabled}
+                        onChange={(e) =>
+                          setGlobalConfig({
+                            ...globalConfig,
+                            chatEnabled: e.target.checked
+                          })
+                        }
+                        className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
+                      />
+                      <span className="ml-3 text-sm font-medium text-gray-700">
+                        Habilitar chat
+                      </span>
+                    </label>
+                  </div>
+                  <div className={!globalConfig.chatEnabled ? 'opacity-50 pointer-events-none' : ''}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Duracion del chat (segundos)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="5"
+                        max="60"
+                        value={globalConfig.chatDuration}
+                        onChange={(e) =>
+                          setGlobalConfig({
+                            ...globalConfig,
+                            chatDuration: Number(e.target.value)
+                          })
+                        }
+                        disabled={!globalConfig.chatEnabled}
+                        className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <span className="text-xl font-bold text-primary w-10 text-center">
+                        {globalConfig.chatDuration}s
+                      </span>
+                    </div>
+                  </div>
+                  <div className={!globalConfig.chatEnabled ? 'opacity-50 pointer-events-none' : ''}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Frecuencia del chat
+                    </label>
+                    <select
+                      value={globalConfig.chatFrequency}
+                      onChange={(e) =>
+                        setGlobalConfig({
+                          ...globalConfig,
+                          chatFrequency: e.target.value as 'once' | 'every-round'
+                        })
+                      }
+                      disabled={!globalConfig.chatEnabled}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="once">Solo antes de la primera ronda</option>
+                      <option value="every-round">Antes de cada ronda</option>
+                    </select>
+                  </div>
+                </div>
+                {globalConfig.chatEnabled && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    Los jugadores pacientes podran chatear durante {globalConfig.chatDuration} segundos
+                    {globalConfig.chatFrequency === 'once' ? ' solo antes de la primera ronda' : ' antes de cada ronda'}.
+                  </p>
+                )}
               </div>
             </div>
           ) : (

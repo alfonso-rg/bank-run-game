@@ -177,9 +177,60 @@ const setupSocketListeners = () => {
     toast(`Ronda ${data.roundNumber} comenzando`, { icon: 'ℹ️' });
   });
 
+  // Eventos de chat
+  socket.on('chat-starting', (data) => {
+    console.log('Chat starting:', data);
+    const { setChatPhase, clearChatMessages, setChatTimeRemaining } = useGameStore.getState();
+
+    setChatPhase(true);
+    clearChatMessages();
+    setChatTimeRemaining(data.duration);
+
+    // Actualizar status del juego
+    const currentState = useGameStore.getState().gameState;
+    if (currentState) {
+      useGameStore.setState({
+        gameState: {
+          ...currentState,
+          status: 'ROUND_CHAT',
+          currentRound: {
+            ...currentState.currentRound,
+            roundNumber: data.roundNumber,
+            chatMessages: [],
+            chatStartedAt: new Date()
+          }
+        }
+      });
+    }
+
+    toast('Fase de chat iniciada', { icon: '💬' });
+  });
+
+  socket.on('chat-message', (data) => {
+    console.log('Chat message:', data);
+    const { addChatMessage } = useGameStore.getState();
+    addChatMessage({
+      playerId: data.playerId as 'player1' | 'player2',
+      message: data.message,
+      timestamp: data.timestamp
+    });
+  });
+
+  socket.on('chat-ending', (data) => {
+    console.log('Chat ending:', data);
+    const { setChatPhase } = useGameStore.getState();
+    setChatPhase(false);
+    toast('Fase de chat terminada', { icon: '⏱️' });
+  });
+
   socket.on('timer-update', (data) => {
     console.log('Timer update:', data);
-    // El componente RoundTimer manejará esto
+    // Actualizar tiempo restante de chat si es fase de chat
+    if (data.phase === 'chat') {
+      const { setChatTimeRemaining } = useGameStore.getState();
+      setChatTimeRemaining(Math.ceil(data.remainingMs / 1000));
+    }
+    // El componente RoundTimer manejará el timer de decision
   });
 
   socket.on('decision-received', (data) => {

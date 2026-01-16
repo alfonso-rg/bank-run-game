@@ -15,6 +15,9 @@ export interface GlobalGameConfig {
   opponentType: 'ai' | 'human';
   gameMode: 'sequential' | 'simultaneous';
   totalRounds: number;
+  chatEnabled: boolean;
+  chatDuration: number;
+  chatFrequency: 'once' | 'every-round';
   updatedAt: string;
 }
 

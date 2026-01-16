@@ -4,6 +4,9 @@ export interface IGlobalConfig {
   opponentType: 'ai' | 'human';  // IA o Multijugador
   gameMode: 'sequential' | 'simultaneous';
   totalRounds: number;
+  chatEnabled: boolean;  // Si el chat pre-decision esta habilitado
+  chatDuration: number;  // Duracion del chat en segundos (0-60)
+  chatFrequency: 'once' | 'every-round';  // Frecuencia del chat
   updatedAt: Date;
 }
 
@@ -29,6 +32,24 @@ const GlobalConfigSchema = new Schema<IGlobalConfigDocument>({
     max: 20,
     default: 5
   },
+  chatEnabled: {
+    type: Boolean,
+    required: true,
+    default: false
+  },
+  chatDuration: {
+    type: Number,
+    required: true,
+    min: 0,
+    max: 60,
+    default: 30
+  },
+  chatFrequency: {
+    type: String,
+    enum: ['once', 'every-round'],
+    required: true,
+    default: 'every-round'
+  },
   updatedAt: {
     type: Date,
     default: Date.now
@@ -42,6 +63,9 @@ const DEFAULT_CONFIG: IGlobalConfig = {
   opponentType: 'ai',
   gameMode: 'simultaneous',
   totalRounds: 5,
+  chatEnabled: false,
+  chatDuration: 30,
+  chatFrequency: 'every-round',
   updatedAt: new Date()
 };
 
@@ -55,7 +79,10 @@ export async function getGlobalConfig(): Promise<IGlobalConfig> {
       config = await GlobalConfig.create({
         opponentType: 'ai',
         gameMode: 'simultaneous',
-        totalRounds: 5
+        totalRounds: 5,
+        chatEnabled: false,
+        chatDuration: 30,
+        chatFrequency: 'every-round'
       });
     }
 
@@ -63,6 +90,9 @@ export async function getGlobalConfig(): Promise<IGlobalConfig> {
       opponentType: config.opponentType,
       gameMode: config.gameMode,
       totalRounds: config.totalRounds,
+      chatEnabled: config.chatEnabled ?? false,
+      chatDuration: config.chatDuration ?? 30,
+      chatFrequency: config.chatFrequency ?? 'every-round',
       updatedAt: config.updatedAt
     };
   } catch (error) {
@@ -91,6 +121,9 @@ export async function updateGlobalConfig(
       opponentType: config.opponentType,
       gameMode: config.gameMode,
       totalRounds: config.totalRounds,
+      chatEnabled: config.chatEnabled ?? false,
+      chatDuration: config.chatDuration ?? 30,
+      chatFrequency: config.chatFrequency ?? 'every-round',
       updatedAt: config.updatedAt
     };
   } catch (error) {
