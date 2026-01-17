@@ -258,7 +258,7 @@ router.get('/config', adminAuth, async (req: Request, res: Response) => {
  */
 router.put('/config', adminAuth, async (req: Request, res: Response) => {
   try {
-    const { opponentType, gameMode, totalRounds, chatEnabled, chatDuration, chatFrequency } = req.body;
+    const { opponentType, gameMode, totalRounds, chatEnabled, chatDuration, chatFrequency, defaultLanguage } = req.body;
 
     // Validar valores
     if (opponentType && !['ai', 'human'].includes(opponentType)) {
@@ -292,6 +292,11 @@ router.put('/config', adminAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    if (defaultLanguage && !['es', 'en'].includes(defaultLanguage)) {
+      res.status(400).json({ error: 'Invalid defaultLanguage. Must be "es" or "en"' });
+      return;
+    }
+
     const updates: Record<string, unknown> = {};
     if (opponentType) updates.opponentType = opponentType;
     if (gameMode) updates.gameMode = gameMode;
@@ -299,10 +304,14 @@ router.put('/config', adminAuth, async (req: Request, res: Response) => {
     if (chatEnabled !== undefined) updates.chatEnabled = chatEnabled;
     if (chatDuration !== undefined) updates.chatDuration = chatDuration;
     if (chatFrequency) updates.chatFrequency = chatFrequency;
+    if (defaultLanguage) updates.defaultLanguage = defaultLanguage;
+
+    logger.info(`[CONFIG DEBUG] Received body: ${JSON.stringify(req.body)}`);
+    logger.info(`[CONFIG DEBUG] Updates to apply: ${JSON.stringify(updates)}`);
 
     const config = await updateGlobalConfig(updates);
 
-    logger.info(`Global config updated: ${JSON.stringify(config)}`);
+    logger.info(`[CONFIG DEBUG] Config after update: ${JSON.stringify(config)}`);
 
     res.json(config);
   } catch (error) {

@@ -1,5 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type GameLanguage = 'es' | 'en';
+
 export interface IGlobalConfig {
   opponentType: 'ai' | 'human';  // IA o Multijugador
   gameMode: 'sequential' | 'simultaneous';
@@ -7,6 +9,7 @@ export interface IGlobalConfig {
   chatEnabled: boolean;  // Si el chat pre-decision esta habilitado
   chatDuration: number;  // Duracion del chat en segundos (0-60)
   chatFrequency: 'once' | 'every-round';  // Frecuencia del chat
+  defaultLanguage: GameLanguage;  // Idioma por defecto del juego
   updatedAt: Date;
 }
 
@@ -50,6 +53,12 @@ const GlobalConfigSchema = new Schema<IGlobalConfigDocument>({
     required: true,
     default: 'every-round'
   },
+  defaultLanguage: {
+    type: String,
+    enum: ['es', 'en'],
+    required: true,
+    default: 'es'
+  },
   updatedAt: {
     type: Date,
     default: Date.now
@@ -66,6 +75,7 @@ const DEFAULT_CONFIG: IGlobalConfig = {
   chatEnabled: false,
   chatDuration: 30,
   chatFrequency: 'every-round',
+  defaultLanguage: 'es',
   updatedAt: new Date()
 };
 
@@ -82,7 +92,8 @@ export async function getGlobalConfig(): Promise<IGlobalConfig> {
         totalRounds: 5,
         chatEnabled: false,
         chatDuration: 30,
-        chatFrequency: 'every-round'
+        chatFrequency: 'every-round',
+        defaultLanguage: 'es'
       });
     }
 
@@ -93,6 +104,7 @@ export async function getGlobalConfig(): Promise<IGlobalConfig> {
       chatEnabled: config.chatEnabled ?? false,
       chatDuration: config.chatDuration ?? 30,
       chatFrequency: config.chatFrequency ?? 'every-round',
+      defaultLanguage: (config.defaultLanguage as GameLanguage) ?? 'es',
       updatedAt: config.updatedAt
     };
   } catch (error) {
@@ -124,6 +136,7 @@ export async function updateGlobalConfig(
       chatEnabled: config.chatEnabled ?? false,
       chatDuration: config.chatDuration ?? 30,
       chatFrequency: config.chatFrequency ?? 'every-round',
+      defaultLanguage: (config.defaultLanguage as GameLanguage) ?? 'es',
       updatedAt: config.updatedAt
     };
   } catch (error) {

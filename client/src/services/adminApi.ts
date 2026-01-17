@@ -11,6 +11,8 @@ export interface GameFilters {
   limit?: number;
 }
 
+export type GameLanguage = 'es' | 'en';
+
 export interface GlobalGameConfig {
   opponentType: 'ai' | 'human';
   gameMode: 'sequential' | 'simultaneous';
@@ -18,6 +20,7 @@ export interface GlobalGameConfig {
   chatEnabled: boolean;
   chatDuration: number;
   chatFrequency: 'once' | 'every-round';
+  defaultLanguage: GameLanguage;
   updatedAt: string;
 }
 

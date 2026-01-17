@@ -109,7 +109,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         totalRounds: globalConfig.totalRounds,
         chatEnabled: globalConfig.chatEnabled,
         chatDuration: globalConfig.chatDuration,
-        chatFrequency: globalConfig.chatFrequency
+        chatFrequency: globalConfig.chatFrequency,
+        defaultLanguage: globalConfig.defaultLanguage
       });
       setGlobalConfig(updated);
       alert('Configuracion guardada correctamente');
@@ -352,6 +353,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                     {globalConfig.chatFrequency === 'once' ? ' solo antes de la primera ronda' : ' antes de cada ronda'}.
                   </p>
                 )}
+              </div>
+
+              {/* Tercera fila: Idioma */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                  Idioma del Juego
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Idioma por defecto
+                    </label>
+                    <select
+                      value={globalConfig.defaultLanguage || 'es'}
+                      onChange={(e) =>
+                        setGlobalConfig({
+                          ...globalConfig,
+                          defaultLanguage: e.target.value as 'es' | 'en'
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="es">Espanol</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Los jugadores veran la interfaz en {globalConfig.defaultLanguage === 'en' ? 'ingles' : 'espanol'} por defecto, pero pueden cambiar el idioma en la pantalla de inicio.
+                </p>
               </div>
             </div>
           ) : (
