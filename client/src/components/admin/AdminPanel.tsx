@@ -85,6 +85,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
     setConfigLoading(true);
     try {
       const config = await fetchGlobalConfig();
+      console.log('[CONFIG DEBUG] Loaded config:', config);
+      console.log('[CONFIG DEBUG] chatEnabled value:', config.chatEnabled, 'type:', typeof config.chatEnabled);
       setGlobalConfig(config);
     } catch (err) {
       console.error('Error loading config:', err);
@@ -101,20 +103,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   const handleSaveConfig = async () => {
     if (!globalConfig) return;
 
+    const configToSave = {
+      opponentType: globalConfig.opponentType,
+      gameMode: globalConfig.gameMode,
+      totalRounds: globalConfig.totalRounds,
+      chatEnabled: globalConfig.chatEnabled,
+      chatDuration: globalConfig.chatDuration,
+      chatFrequency: globalConfig.chatFrequency,
+      defaultLanguage: globalConfig.defaultLanguage
+    };
+
+    console.log('[CONFIG DEBUG] Saving config:', configToSave);
+    console.log('[CONFIG DEBUG] chatEnabled being sent:', configToSave.chatEnabled, 'type:', typeof configToSave.chatEnabled);
+
     setConfigSaving(true);
     try {
-      const updated = await updateGlobalConfig({
-        opponentType: globalConfig.opponentType,
-        gameMode: globalConfig.gameMode,
-        totalRounds: globalConfig.totalRounds,
-        chatEnabled: globalConfig.chatEnabled,
-        chatDuration: globalConfig.chatDuration,
-        chatFrequency: globalConfig.chatFrequency,
-        defaultLanguage: globalConfig.defaultLanguage
-      });
+      const updated = await updateGlobalConfig(configToSave);
+      console.log('[CONFIG DEBUG] Received after save:', updated);
+      console.log('[CONFIG DEBUG] chatEnabled after save:', updated.chatEnabled, 'type:', typeof updated.chatEnabled);
       setGlobalConfig(updated);
       alert('Configuracion guardada correctamente');
     } catch (err) {
+      console.error('[CONFIG DEBUG] Error saving:', err);
       alert('Error al guardar la configuracion');
     } finally {
       setConfigSaving(false);
