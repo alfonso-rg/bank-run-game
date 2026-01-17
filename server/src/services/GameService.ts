@@ -37,6 +37,9 @@ export class GameService {
     const gameId = nanoid();
     const gameConfig = { ...DEFAULT_GAME_CONFIG, ...config, mode };
 
+    // Log para debug de chat config
+    logger.info(`[CHAT DEBUG] Creating game with config: chatEnabled=${gameConfig.chatEnabled}, chatDuration=${gameConfig.chatDuration}, chatFrequency=${gameConfig.chatFrequency}`);
+
     const game: GameState = {
       gameId,
       roomCode,
@@ -185,13 +188,36 @@ export class GameService {
    */
   shouldHaveChat(gameId: string): boolean {
     const game = this.games.get(gameId);
-    if (!game || !game.config.chatEnabled) return false;
-    if (game.config.chatDuration === 0) return false;
 
-    if (game.config.chatFrequency === 'once') {
-      return game.currentRound.roundNumber === 1;
+    logger.info(`[CHAT DEBUG] shouldHaveChat called for game ${gameId}`);
+    logger.info(`[CHAT DEBUG] game exists: ${!!game}`);
+
+    if (!game) {
+      logger.info(`[CHAT DEBUG] No game found, returning false`);
+      return false;
     }
 
+    logger.info(`[CHAT DEBUG] game.config.chatEnabled: ${game.config.chatEnabled}`);
+    logger.info(`[CHAT DEBUG] game.config.chatDuration: ${game.config.chatDuration}`);
+    logger.info(`[CHAT DEBUG] game.config.chatFrequency: ${game.config.chatFrequency}`);
+    logger.info(`[CHAT DEBUG] currentRound.roundNumber: ${game.currentRound.roundNumber}`);
+
+    if (!game.config.chatEnabled) {
+      logger.info(`[CHAT DEBUG] chatEnabled is false, returning false`);
+      return false;
+    }
+    if (game.config.chatDuration === 0) {
+      logger.info(`[CHAT DEBUG] chatDuration is 0, returning false`);
+      return false;
+    }
+
+    if (game.config.chatFrequency === 'once') {
+      const result = game.currentRound.roundNumber === 1;
+      logger.info(`[CHAT DEBUG] chatFrequency is 'once', round is ${game.currentRound.roundNumber}, returning ${result}`);
+      return result;
+    }
+
+    logger.info(`[CHAT DEBUG] chatFrequency is 'every-round', returning true`);
     return true;  // 'every-round'
   }
 
@@ -456,6 +482,7 @@ export class GameService {
 
   /**
    * Avanza a la siguiente ronda o termina el juego
+   * NOTA: No cambia el status aquí - startRound() determinará si es ROUND_CHAT o ROUND_DECISION
    */
   nextRound(gameId: string): boolean {
     const game = this.games.get(gameId);
@@ -473,7 +500,7 @@ export class GameService {
     game.currentRound.roundNumber++;
     game.currentRound.chatMessages = [];
     game.currentRound.chatStartedAt = null;
-    game.status = 'ROUND_DECISION';
+    // NO establecer game.status aquí - startRound() lo hará después de verificar si hay chat
     logger.info(`Game ${gameId} advancing to round ${game.currentRound.roundNumber}`);
     return true;
   }

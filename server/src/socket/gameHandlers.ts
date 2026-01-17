@@ -4,6 +4,7 @@ import { gameService } from '../services/GameService';
 import { matchmakingService } from '../services/MatchmakingService';
 import { llmService, LLMService } from '../services/LLMService';
 import { logger } from '../config/logger';
+import { getGlobalConfig } from '../models/GlobalConfig';
 import {
   GameMode,
   PlayerId,
@@ -188,6 +189,21 @@ export function setupGameHandlers(io: Server): void {
           return;
         }
 
+        // Obtener configuración global (incluye chat settings)
+        const globalConfig = await getGlobalConfig();
+        logger.info(`[CHAT DEBUG] Raw globalConfig from DB: ${JSON.stringify(globalConfig)}`);
+
+        const mergedConfig: Partial<GameConfig> = {
+          ...config,
+          chatEnabled: globalConfig.chatEnabled,
+          chatDuration: globalConfig.chatDuration,
+          chatFrequency: globalConfig.chatFrequency,
+          totalRounds: globalConfig.totalRounds
+        };
+
+        logger.info(`[CHAT DEBUG] mergedConfig to pass to createGame: chatEnabled=${mergedConfig.chatEnabled}, chatDuration=${mergedConfig.chatDuration}, chatFrequency=${mergedConfig.chatFrequency}`);
+        logger.info(`Global config loaded: chatEnabled=${globalConfig.chatEnabled}, chatDuration=${globalConfig.chatDuration}, chatFrequency=${globalConfig.chatFrequency}`);
+
         // Determinar modo: vs IA o multijugador
         const isVsAI = room.players.length === 1;
         const isMultiplayer = room.players.length === 2;
@@ -239,7 +255,7 @@ export function setupGameHandlers(io: Server): void {
           room.mode,
           player1,
           player2,
-          config
+          mergedConfig
         );
 
         // Marcar sala como en progreso
@@ -465,12 +481,22 @@ export function setupGameHandlers(io: Server): void {
  */
 async function startRound(io: Server, gameId: string): Promise<void> {
   const game = gameService.getGame(gameId);
-  if (!game) return;
+  if (!game) {
+    logger.error(`[CHAT DEBUG] startRound: game not found for ${gameId}`);
+    return;
+  }
+
+  logger.info(`[CHAT DEBUG] startRound called for game ${gameId}, round ${game.currentRound.roundNumber}`);
 
   // Verificar si debe haber chat en esta ronda
-  if (gameService.shouldHaveChat(gameId)) {
+  const shouldChat = gameService.shouldHaveChat(gameId);
+  logger.info(`[CHAT DEBUG] shouldHaveChat returned: ${shouldChat}`);
+
+  if (shouldChat) {
+    logger.info(`[CHAT DEBUG] Starting chat phase for game ${gameId}`);
     await startChatPhase(io, gameId);
   } else {
+    logger.info(`[CHAT DEBUG] Starting decision phase directly for game ${gameId}`);
     await startDecisionPhase(io, gameId);
   }
 }
@@ -480,13 +506,19 @@ async function startRound(io: Server, gameId: string): Promise<void> {
  */
 async function startChatPhase(io: Server, gameId: string): Promise<void> {
   const game = gameService.getGame(gameId);
-  if (!game) return;
+  if (!game) {
+    logger.error(`[CHAT DEBUG] startChatPhase: game not found for ${gameId}`);
+    return;
+  }
+
+  logger.info(`[CHAT DEBUG] startChatPhase: Starting chat phase for game ${gameId}`);
 
   gameService.startChatPhase(gameId);
 
   const roundNumber = game.currentRound.roundNumber;
   const duration = game.config.chatDuration;
 
+  logger.info(`[CHAT DEBUG] Emitting 'chat-starting' to room ${game.roomCode} with roundNumber=${roundNumber}, duration=${duration}`);
   io.to(game.roomCode).emit('chat-starting', { roundNumber, duration });
 
   // Iniciar timer de chat
