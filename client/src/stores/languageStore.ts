@@ -15,17 +15,6 @@ interface LanguageStore {
   setLanguage: (lang: Language) => void;
 }
 
-// Get initial language from localStorage or default to Spanish
-const getInitialLanguage = (): Language => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('bank-run-language');
-    if (stored === 'en' || stored === 'es') {
-      return stored;
-    }
-  }
-  return 'es';
-};
-
 export const useLanguageStore = create<LanguageStore>()(
   persist(
     (set) => ({

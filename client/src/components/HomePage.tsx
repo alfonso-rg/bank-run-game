@@ -12,7 +12,7 @@ import type { Language } from '../i18n';
 
 export const HomePage: React.FC = () => {
   const socket = useSocketInstance();
-  const { t, language, setLanguage } = useTranslation();
+  const { t, setLanguage } = useTranslation();
   const [config, setConfig] = useState<GlobalGameConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
